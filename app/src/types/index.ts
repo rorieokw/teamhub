@@ -87,15 +87,34 @@ export interface Document {
   createdAt: Timestamp;
 }
 
+export type ActivityType =
+  | 'task-created'
+  | 'task-completed'
+  | 'task-updated'
+  | 'project-created'
+  | 'project-updated'
+  | 'member-joined'
+  | 'comment-added'
+  | 'message-sent'
+  | 'poll-created'
+  | 'poll-voted'
+  | 'poll-closed'
+  | 'announcement-posted'
+  | 'event-created';
+
 export interface Activity {
   id: string;
-  type: 'task-created' | 'task-completed' | 'task-updated' | 'project-created' | 'project-updated' | 'member-joined' | 'comment-added' | 'message-sent';
+  type: ActivityType;
   userId: string;
   userName: string;
   projectId?: string;
   projectName?: string;
   taskId?: string;
   taskTitle?: string;
+  pollId?: string;
+  pollQuestion?: string;
+  announcementId?: string;
+  eventId?: string;
   description: string;
   createdAt: Timestamp;
 }
@@ -165,4 +184,97 @@ export const RANK_POINTS = {
   MESSAGE_SENT: 1,
   COMMENT_ADDED: 3,
   MILESTONE_COMPLETED: 15,
+  POLL_CREATED: 10,
+  POLL_VOTED: 2,
 } as const;
+
+// ============================================
+// POLLS
+// ============================================
+
+export interface PollOption {
+  id: string;
+  text: string;
+  votes: string[]; // Array of user IDs who voted for this option
+}
+
+export interface Poll {
+  id: string;
+  channelId: string;
+  projectId?: string;
+  question: string;
+  options: PollOption[];
+  createdBy: string;
+  createdByName: string;
+  closed: boolean;
+  allowMultiple: boolean;
+  expiresAt?: Timestamp;
+  createdAt: Timestamp;
+}
+
+// ============================================
+// CALENDAR EVENTS
+// ============================================
+
+export interface TeamEvent {
+  id: string;
+  title: string;
+  description?: string;
+  date: Timestamp;
+  endDate?: Timestamp;
+  allDay: boolean;
+  projectId?: string;
+  taskId?: string;
+  color?: string;
+  createdBy: string;
+  createdByName: string;
+  attendees?: string[];
+  createdAt: Timestamp;
+}
+
+// ============================================
+// ANNOUNCEMENTS
+// ============================================
+
+export type AnnouncementPriority = 'normal' | 'important' | 'urgent';
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  pinned: boolean;
+  projectId?: string;
+  createdBy: string;
+  createdByName: string;
+  dismissedBy: string[];
+  expiresAt?: Timestamp;
+  createdAt: Timestamp;
+}
+
+// ============================================
+// PINNED ITEMS
+// ============================================
+
+export type PinnedItemType = 'task' | 'message' | 'document' | 'poll';
+
+export interface PinnedItem {
+  id: string;
+  userId: string;
+  itemType: PinnedItemType;
+  itemId: string;
+  title: string;
+  subtitle?: string;
+  pinnedAt: Timestamp;
+}
+
+// ============================================
+// USER PRESENCE (Extended)
+// ============================================
+
+export type UserStatus = 'online' | 'busy' | 'away' | 'offline';
+
+export interface UserPresenceExtended extends UserPresence {
+  status: UserStatus;
+  statusMessage?: string;
+}

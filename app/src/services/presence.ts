@@ -9,7 +9,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { UserPresence } from '../types';
+import type { UserPresence, UserStatus, UserPresenceExtended } from '../types';
 
 const COLLECTION = 'presence';
 
@@ -23,6 +23,25 @@ export async function updatePresence(
     presenceRef,
     {
       online,
+      lastSeen: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+// Update user's status (online/busy/away)
+export async function updateUserStatus(
+  userId: string,
+  status: UserStatus,
+  statusMessage?: string
+): Promise<void> {
+  const presenceRef = doc(db, COLLECTION, userId);
+  await setDoc(
+    presenceRef,
+    {
+      online: status !== 'offline',
+      status,
+      statusMessage: statusMessage || null,
       lastSeen: serverTimestamp(),
     },
     { merge: true }
@@ -129,3 +148,70 @@ export function isUserOnline(presence: UserPresence | null): boolean {
   const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
   return lastSeen.toMillis() > twoMinutesAgo;
 }
+
+// Get user's current status
+export function getUserStatus(presence: UserPresenceExtended | UserPresence | null): UserStatus {
+  if (!presence) return 'offline';
+  if (!isUserOnline(presence)) return 'offline';
+
+  // Check if it's extended presence with status
+  const extended = presence as UserPresenceExtended;
+  if (extended.status) {
+    return extended.status;
+  }
+
+  return presence.online ? 'online' : 'offline';
+}
+
+// Get status color class
+export function getStatusColor(status: UserStatus): string {
+  switch (status) {
+    case 'online':
+      return 'bg-green-500';
+    case 'busy':
+      return 'bg-red-500';
+    case 'away':
+      return 'bg-yellow-500';
+    case 'offline':
+    default:
+      return 'bg-gray-500';
+  }
+}
+
+// Get status ring color class
+export function getStatusRingColor(status: UserStatus): string {
+  switch (status) {
+    case 'online':
+      return 'ring-green-500/30';
+    case 'busy':
+      return 'ring-red-500/30';
+    case 'away':
+      return 'ring-yellow-500/30';
+    case 'offline':
+    default:
+      return 'ring-gray-500/30';
+  }
+}
+
+// Get status label
+export function getStatusLabel(status: UserStatus): string {
+  switch (status) {
+    case 'online':
+      return 'Online';
+    case 'busy':
+      return 'Busy';
+    case 'away':
+      return 'Away';
+    case 'offline':
+    default:
+      return 'Offline';
+  }
+}
+
+// Status options for selector
+export const STATUS_OPTIONS: { value: UserStatus; label: string; icon: string }[] = [
+  { value: 'online', label: 'Online', icon: '🟢' },
+  { value: 'busy', label: 'Busy', icon: '🔴' },
+  { value: 'away', label: 'Away', icon: '🟡' },
+  { value: 'offline', label: 'Appear Offline', icon: '⚫' },
+];

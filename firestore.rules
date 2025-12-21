@@ -120,5 +120,68 @@ service cloud.firestore {
       allow write: if request.auth != null
                    && request.auth.uid == userId;
     }
+
+    // Polls collection
+    match /polls/{pollId} {
+      // Authenticated users can read polls
+      allow read: if request.auth != null;
+
+      // Authenticated users can create polls
+      allow create: if request.auth != null;
+
+      // Authenticated users can update polls (for voting)
+      allow update: if request.auth != null;
+
+      // Only creator can delete polls
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Events collection (calendar)
+    match /events/{eventId} {
+      // Authenticated users can read events
+      allow read: if request.auth != null;
+
+      // Authenticated users can create events
+      allow create: if request.auth != null;
+
+      // Authenticated users can update events
+      allow update: if request.auth != null;
+
+      // Only creator can delete events
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Announcements collection
+    match /announcements/{announcementId} {
+      // Authenticated users can read announcements
+      allow read: if request.auth != null;
+
+      // Authenticated users can create announcements
+      allow create: if request.auth != null;
+
+      // Authenticated users can update (for dismissing)
+      allow update: if request.auth != null;
+
+      // Only creator can delete announcements
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Pinned items collection (user-specific)
+    match /pinnedItems/{pinnedId} {
+      // Users can only read their own pinned items
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.userId;
+
+      // Users can only create pinned items for themselves
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+
+      // Users can only delete their own pinned items
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+    }
   }
 }

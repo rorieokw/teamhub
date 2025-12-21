@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Timestamp } from 'firebase/firestore';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +20,7 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import type { Task, Project, User } from '../types';
 
 type ColumnId = 'todo' | 'in-progress' | 'done';
+type FilterType = 'all' | 'mine' | 'done' | 'pending';
 
 const columnConfig: Record<ColumnId, { title: string; color: string; bgColor: string }> = {
   'todo': { title: 'To Do', color: 'bg-gray-500', bgColor: 'bg-white/10' },
@@ -28,6 +30,7 @@ const columnConfig: Record<ColumnId, { title: string; color: string; bgColor: st
 
 export default function Tasks() {
   const { currentUser, userProfile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers] = useState<User[]>([]);
@@ -36,7 +39,28 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'mine'>('all');
+
+  // Get filter from URL or default to 'all'
+  const urlFilter = searchParams.get('filter') as FilterType | null;
+  const [filter, setFilter] = useState<FilterType>(urlFilter || 'all');
+
+  // Update filter when URL changes
+  useEffect(() => {
+    if (urlFilter && ['all', 'mine', 'done', 'pending'].includes(urlFilter)) {
+      setFilter(urlFilter);
+    }
+  }, [urlFilter]);
+
+  // Update URL when filter changes
+  const handleFilterChange = (newFilter: FilterType) => {
+    setFilter(newFilter);
+    if (newFilter === 'all') {
+      searchParams.delete('filter');
+    } else {
+      searchParams.set('filter', newFilter);
+    }
+    setSearchParams(searchParams);
+  };
 
   // Subscribe to projects user is a member of
   useEffect(() => {
@@ -213,10 +237,18 @@ export default function Tasks() {
   }
 
   // Filter tasks
-  const filteredTasks =
-    filter === 'mine'
-      ? tasks.filter((t) => t.assignedTo === currentUser?.uid)
-      : tasks;
+  const filteredTasks = tasks.filter((t) => {
+    switch (filter) {
+      case 'mine':
+        return t.assignedTo === currentUser?.uid;
+      case 'done':
+        return t.status === 'done';
+      case 'pending':
+        return t.status !== 'done';
+      default:
+        return true;
+    }
+  });
 
   const getTasksByStatus = (status: ColumnId) =>
     filteredTasks.filter((t) => t.status === status);
@@ -248,11 +280,13 @@ export default function Tasks() {
           {/* Filter */}
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as 'all' | 'mine')}
+            onChange={(e) => handleFilterChange(e.target.value as FilterType)}
             className="px-4 py-2.5 glass border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-transparent"
           >
             <option value="all" className="bg-[#2d2a4a]">All Tasks</option>
             <option value="mine" className="bg-[#2d2a4a]">My Tasks</option>
+            <option value="pending" className="bg-[#2d2a4a]">Pending Tasks</option>
+            <option value="done" className="bg-[#2d2a4a]">Completed Tasks</option>
           </select>
           <button
             onClick={() => setShowCreateModal(true)}

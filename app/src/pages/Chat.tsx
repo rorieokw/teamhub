@@ -540,6 +540,8 @@ export default function Chat() {
         {/* Message Input */}
         <ChatInput
           onSend={handleSendMessage}
+          channelId={activeChannel?.id || ''}
+          projectId={activeChannel?.projectId}
           placeholder={
             activeChannel?.type === 'dm'
               ? `Message ${getDMDisplayName(activeChannel)}...`

@@ -1,22 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 import type { FormEvent, KeyboardEvent } from 'react';
 import GifPicker from './GifPicker';
+import PollCreator from '../polls/PollCreator';
+import { parsePollCommand, createPoll } from '../../services/polls';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ChatInputProps {
   onSend: (content: string) => Promise<void>;
+  onPollCreated?: (pollId: string) => void;
+  channelId: string;
+  projectId?: string;
   placeholder?: string;
   disabled?: boolean;
 }
 
 export default function ChatInput({
   onSend,
+  onPollCreated,
+  channelId,
+  projectId,
   placeholder = 'Type a message...',
   disabled = false,
 }: ChatInputProps) {
+  const { currentUser, userProfile } = useAuth();
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [showPollHint, setShowPollHint] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Detect /poll command
+  useEffect(() => {
+    setShowPollHint(content.trim().startsWith('/poll'));
+  }, [content]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -32,6 +49,39 @@ export default function ChatInput({
 
     const trimmed = content.trim();
     if (!trimmed || sending || disabled) return;
+
+    // Check for /poll command
+    const pollData = parsePollCommand(trimmed);
+    if (pollData && currentUser && userProfile) {
+      setSending(true);
+      try {
+        const pollId = await createPoll(
+          channelId,
+          pollData.question,
+          pollData.options,
+          currentUser.uid,
+          userProfile.displayName,
+          projectId
+        );
+        setContent('');
+        onPollCreated?.(pollId);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+      } catch (err) {
+        console.error('Failed to create poll:', err);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // Check for incomplete /poll command - show creator instead
+    if (trimmed === '/poll') {
+      setShowPollCreator(true);
+      setContent('');
+      return;
+    }
 
     setSending(true);
     try {
@@ -69,16 +119,50 @@ export default function ChatInput({
     }
   }
 
+  // Poll creator modal
+  if (showPollCreator) {
+    return (
+      <div className="p-4 glass-dark border-t border-white/10">
+        <PollCreator
+          channelId={channelId}
+          projectId={projectId}
+          onClose={() => setShowPollCreator(false)}
+          onSuccess={(pollId) => {
+            onPollCreated?.(pollId);
+            setShowPollCreator(false);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="p-4 glass-dark border-t border-white/10">
+      {/* Poll hint */}
+      {showPollHint && (
+        <div className="mb-3 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg animate-fade-in">
+          <p className="text-sm text-purple-300">
+            <span className="font-medium">Poll syntax:</span>{' '}
+            <code className="px-1.5 py-0.5 bg-white/10 rounded text-xs">
+              /poll "Question?" "Option 1" "Option 2"
+            </code>
+          </p>
+          <p className="text-xs text-white/50 mt-1">
+            Or just type <code className="px-1 py-0.5 bg-white/10 rounded">/poll</code> and press Enter to open the poll creator
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-3 items-end">
-        {/* Attach button */}
+        {/* Poll button */}
         <button
           type="button"
-          className="p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+          onClick={() => setShowPollCreator(true)}
+          className="p-2.5 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-xl transition-colors"
+          title="Create a poll"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z" />
           </svg>
         </button>
 
