@@ -1,0 +1,205 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone authenticated can read users (for member lookups)
+      allow read: if request.auth != null;
+
+      // Only the user can create/update their own profile
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      // Authenticated users can read projects (filter by membership in app)
+      allow read: if request.auth != null;
+
+      // Authenticated users can create projects
+      allow create: if request.auth != null;
+
+      // Only members can update
+      allow update: if request.auth != null
+                    && request.auth.uid in resource.data.members;
+
+      // Only creator can delete
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Milestones collection
+    match /milestones/{milestoneId} {
+      // Authenticated users can read/write milestones
+      // (project-level access should be checked in app logic)
+      allow read, write: if request.auth != null;
+    }
+
+    // Tasks collection
+    match /tasks/{taskId} {
+      // Authenticated users can read/write tasks
+      allow read, write: if request.auth != null;
+    }
+
+    // Messages collection
+    match /messages/{messageId} {
+      // Authenticated users can read/write messages
+      allow read, write: if request.auth != null;
+    }
+
+    // Documents collection (file metadata)
+    match /documents/{documentId} {
+      // Authenticated users can read/write documents
+      allow read, write: if request.auth != null;
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.userId;
+
+      // System can create notifications for any user
+      allow create: if request.auth != null;
+
+      // Users can only update their own notifications (mark as read)
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+    }
+
+    // Project Invites collection
+    match /projectInvites/{inviteId} {
+      // Authenticated users can read invites (filter in app by email)
+      allow read: if request.auth != null;
+
+      // Authenticated users can create invites
+      allow create: if request.auth != null;
+
+      // Anyone can update (accept/decline) invites
+      allow update: if request.auth != null;
+
+      // Creator can delete invites
+      allow delete: if request.auth != null;
+    }
+
+    // Read status for chat (unread indicators)
+    match /readStatus/{userId} {
+      // Users can only read/write their own read status
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // User stats for ranking system
+    match /userStats/{userId} {
+      // Anyone authenticated can read stats (for displaying ranks)
+      allow read: if request.auth != null;
+
+      // Users can only write their own stats
+      allow write: if request.auth != null
+                   && request.auth.uid == userId;
+    }
+
+    // Activities collection
+    match /activities/{activityId} {
+      // Authenticated users can read/write activities
+      allow read, write: if request.auth != null;
+    }
+
+    // Task comments subcollection
+    match /tasks/{taskId}/comments/{commentId} {
+      // Authenticated users can read/write comments
+      allow read, write: if request.auth != null;
+    }
+
+    // User presence
+    match /presence/{userId} {
+      // Anyone can read presence
+      allow read: if request.auth != null;
+
+      // Users can only write their own presence
+      allow write: if request.auth != null
+                   && request.auth.uid == userId;
+    }
+
+    // Polls collection
+    match /polls/{pollId} {
+      // Authenticated users can read polls
+      allow read: if request.auth != null;
+
+      // Authenticated users can create polls
+      allow create: if request.auth != null;
+
+      // Authenticated users can update polls (for voting)
+      allow update: if request.auth != null;
+
+      // Only creator can delete polls
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Events collection (calendar)
+    match /events/{eventId} {
+      // Authenticated users can read events
+      allow read: if request.auth != null;
+
+      // Authenticated users can create events
+      allow create: if request.auth != null;
+
+      // Authenticated users can update events
+      allow update: if request.auth != null;
+
+      // Only creator can delete events
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Announcements collection
+    match /announcements/{announcementId} {
+      // Authenticated users can read announcements
+      allow read: if request.auth != null;
+
+      // Authenticated users can create announcements
+      allow create: if request.auth != null;
+
+      // Authenticated users can update (for dismissing)
+      allow update: if request.auth != null;
+
+      // Only creator can delete announcements
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.createdBy;
+    }
+
+    // Pinned items collection (user-specific)
+    match /pinnedItems/{pinnedId} {
+      // Users can only read their own pinned items
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.userId;
+
+      // Users can only create pinned items for themselves
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+
+      // Users can only delete their own pinned items
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+    }
+
+    // Work sessions collection (live coding indicator)
+    match /workSessions/{sessionId} {
+      // Authenticated users can read all sessions (to see who's working)
+      allow read: if request.auth != null;
+
+      // Users can only create sessions for themselves
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+
+      // Users can only update their own sessions
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+
+      // Users can only delete their own sessions
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.userId;
+    }
+  }
+}

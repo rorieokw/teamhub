@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ipconfig:*)",
+      "Bash(findstr:*)",
+      "Bash(dir \"C:\\\\Users\\\\Rorie\\\\Desktop\\\\teamhub-master\")",
+      "Bash(npm run dev:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(npx tsc:*)",
+      "Skill(architect)",
+      "Bash(tasklist:*)",
+      "Bash(npm run build:*)",
+      "Bash(dir:*)",
+      "Bash(npx firebase deploy:*)",
+      "Bash(firebase deploy:*)"
+    ]
+  }
+}
