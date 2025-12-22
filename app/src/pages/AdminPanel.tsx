@@ -2,6 +2,8 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../contexts/AuthContext';
+import UserProfileModal from '../components/profile/UserProfileModal';
+import { addMemberToProject, removeMemberFromProject } from '../services/projects';
 import {
   getAllUsers,
   adminDeleteMessage,
@@ -72,6 +74,12 @@ export default function AdminPanel() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDesc, setEditProjectDesc] = useState('');
+
+  // User profile modal
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+
+  // Project member management
+  const [managingProject, setManagingProject] = useState<Project | null>(null);
 
   // Task creation form
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -834,7 +842,7 @@ export default function AdminPanel() {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-white/5">
+                    <tr key={user.id} className="hover:bg-white/5 cursor-pointer" onClick={() => setViewingUserId(user.id)}>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
@@ -860,7 +868,8 @@ export default function AdminPanel() {
                       </td>
                       <td className="p-3 text-right">
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setEditingUser(user);
                             setEditTitle(user.title || '');
                           }}
@@ -941,6 +950,12 @@ export default function AdminPanel() {
                         <span className="text-xs text-gray-500">{formatDate(project.createdAt)}</span>
                       </td>
                       <td className="p-3 text-right">
+                        <button
+                          onClick={() => setManagingProject(project)}
+                          className="px-3 py-1 text-xs text-green-400 hover:bg-green-500/10 rounded-lg transition-colors mr-2"
+                        >
+                          Members
+                        </button>
                         <button
                           onClick={() => handleEditProject(project)}
                           className="px-3 py-1 text-xs text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors mr-2"
@@ -1712,6 +1727,143 @@ export default function AdminPanel() {
                   Save
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        userId={viewingUserId || ''}
+        isOpen={!!viewingUserId}
+        onClose={() => setViewingUserId(null)}
+      />
+
+      {/* Project Member Management Modal */}
+      {managingProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-gray-800 rounded-2xl p-6 shadow-2xl border border-gray-700 max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">
+                Manage Members - {managingProject.name}
+              </h3>
+              <button
+                onClick={() => setManagingProject(null)}
+                className="p-1 text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Current Members */}
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-400 mb-2">Current Members ({managingProject.members?.length || 0})</h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {managingProject.members?.map((memberId) => {
+                  const member = users.find(u => u.id === memberId);
+                  const isOwner = memberId === managingProject.createdBy;
+                  return (
+                    <div key={memberId} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
+                          {member?.avatarUrl?.startsWith('http') ? (
+                            <img src={member.avatarUrl} alt={member.displayName} className="w-full h-full object-cover" />
+                          ) : member?.avatarUrl ? (
+                            <span className="text-base">{member.avatarUrl}</span>
+                          ) : (
+                            member?.displayName?.charAt(0).toUpperCase() || '?'
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-sm text-white">{member?.displayName || 'Unknown User'}</span>
+                          {isOwner && <span className="ml-2 text-xs text-purple-400">(Owner)</span>}
+                        </div>
+                      </div>
+                      {!isOwner && (
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Remove ${member?.displayName} from this project?`)) {
+                              await removeMemberFromProject(managingProject.id, memberId);
+                              // Update local state
+                              setManagingProject({
+                                ...managingProject,
+                                members: managingProject.members?.filter(m => m !== memberId) || []
+                              });
+                              setProjects(projects.map(p =>
+                                p.id === managingProject.id
+                                  ? { ...p, members: p.members?.filter(m => m !== memberId) || [] }
+                                  : p
+                              ));
+                              if (currentUser && userProfile) {
+                                await logAdminAction('Removed member from project', currentUser.uid, userProfile.displayName, memberId, member?.displayName, managingProject.name);
+                              }
+                            }
+                          }}
+                          className="px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Add Members */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-400 mb-2">Add Members</h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {users.filter(u => !managingProject.members?.includes(u.id)).map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
+                        {user.avatarUrl?.startsWith('http') ? (
+                          <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                        ) : user.avatarUrl ? (
+                          <span className="text-base">{user.avatarUrl}</span>
+                        ) : (
+                          user.displayName?.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <span className="text-sm text-white">{user.displayName}</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        await addMemberToProject(managingProject.id, user.id);
+                        // Update local state
+                        const newMembers = [...(managingProject.members || []), user.id];
+                        setManagingProject({ ...managingProject, members: newMembers });
+                        setProjects(projects.map(p =>
+                          p.id === managingProject.id
+                            ? { ...p, members: newMembers }
+                            : p
+                        ));
+                        if (currentUser && userProfile) {
+                          await logAdminAction('Added member to project', currentUser.uid, userProfile.displayName, user.id, user.displayName, managingProject.name);
+                        }
+                      }}
+                      className="px-2 py-1 text-xs text-green-400 hover:bg-green-500/10 rounded transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                ))}
+                {users.filter(u => !managingProject.members?.includes(u.id)).length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-2">All users are already members</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <button
+                onClick={() => setManagingProject(null)}
+                className="w-full px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

@@ -108,3 +108,13 @@ export async function leaveProject(projectId: string, userId: string): Promise<v
     updatedAt: serverTimestamp(),
   });
 }
+
+// Add member to project (admin function)
+export async function addMemberToProject(projectId: string, userId: string): Promise<void> {
+  return joinProject(projectId, userId);
+}
+
+// Remove member from project (admin function)
+export async function removeMemberFromProject(projectId: string, userId: string): Promise<void> {
+  return leaveProject(projectId, userId);
+}

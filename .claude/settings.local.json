@@ -22,7 +22,12 @@
       "Bash(firebase login:*)",
       "Bash(git add:*)",
       "Bash(popd:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(npx firebase:*)",
+      "Bash(gh auth:*)"
     ]
   }
 }
