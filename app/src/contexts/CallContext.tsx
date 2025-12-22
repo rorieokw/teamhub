@@ -22,6 +22,7 @@ import {
   cleanupCallSignaling,
   ICE_SERVERS,
 } from '../services/calls';
+import { getCallSettings } from '../services/callSettings';
 
 interface CallContextType {
   // State
@@ -29,6 +30,7 @@ interface CallContextType {
   outgoingCall: Call | null; // New: for caller to see "Calling..." UI
   activeCall: Call | null;
   isMuted: boolean;
+  isPushToTalkActive: boolean; // True when PTT key is held down
   isConnecting: boolean;
   callError: string | null;
   participants: Map<string, { muted: boolean; stream?: MediaStream }>;
@@ -47,6 +49,7 @@ const CallContext = createContext<CallContextType>({
   outgoingCall: null,
   activeCall: null,
   isMuted: false,
+  isPushToTalkActive: false,
   isConnecting: false,
   callError: null,
   participants: new Map(),
@@ -148,6 +151,7 @@ export function CallProvider({ children }: CallProviderProps) {
   const [outgoingCall, setOutgoingCall] = useState<Call | null>(null);
   const [activeCall, setActiveCall] = useState<Call | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
   const [participants, setParticipants] = useState<Map<string, { muted: boolean; stream?: MediaStream }>>(new Map());
@@ -172,6 +176,64 @@ export function CallProvider({ children }: CallProviderProps) {
   useEffect(() => {
     outgoingCallRef.current = outgoingCall;
   }, [outgoingCall]);
+
+  // Push-to-talk keyboard handler
+  useEffect(() => {
+    if (!activeCall) return;
+
+    const settings = getCallSettings();
+    if (settings.voiceMode !== 'push-to-talk') return;
+
+    const pttKey = settings.pushToTalkKey;
+
+    // Initially mute when in push-to-talk mode
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = false;
+        setIsMuted(true);
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key === ' ' ? 'Space' : e.key;
+      if (key === pttKey && !e.repeat) {
+        // Enable microphone when key is pressed
+        if (localStreamRef.current) {
+          const audioTrack = localStreamRef.current.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = true;
+            setIsMuted(false);
+            setIsPushToTalkActive(true);
+          }
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const key = e.key === ' ' ? 'Space' : e.key;
+      if (key === pttKey) {
+        // Disable microphone when key is released
+        if (localStreamRef.current) {
+          const audioTrack = localStreamRef.current.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = false;
+            setIsMuted(true);
+            setIsPushToTalkActive(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      setIsPushToTalkActive(false);
+    };
+  }, [activeCall]);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -561,6 +623,7 @@ export function CallProvider({ children }: CallProviderProps) {
     outgoingCall,
     activeCall,
     isMuted,
+    isPushToTalkActive,
     isConnecting,
     callError,
     participants,

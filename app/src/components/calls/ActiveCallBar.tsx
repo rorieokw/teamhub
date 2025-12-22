@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useCall } from '../../contexts/CallContext';
+import { getCallSettings } from '../../services/callSettings';
 
 // Phone icon SVG
 function PhoneIcon({ size = 16 }: { size?: number }) {
@@ -103,8 +104,17 @@ function UsersIcon({ size = 14 }: { size?: number }) {
 }
 
 export function ActiveCallBar() {
-  const { activeCall, endCall, isMuted, toggleMute, isConnecting } = useCall();
+  const { activeCall, endCall, isMuted, isPushToTalkActive, toggleMute, isConnecting } = useCall();
   const [duration, setDuration] = useState(0);
+  const [isPushToTalkMode, setIsPushToTalkMode] = useState(false);
+  const [pttKey, setPttKey] = useState('Space');
+
+  // Check voice mode settings
+  useEffect(() => {
+    const settings = getCallSettings();
+    setIsPushToTalkMode(settings.voiceMode === 'push-to-talk');
+    setPttKey(settings.pushToTalkKey);
+  }, [activeCall]);
 
   // Track call duration
   useEffect(() => {
@@ -170,23 +180,51 @@ export function ActiveCallBar() {
 
           {/* Controls */}
           <div className="flex items-center gap-3">
-            {/* Mute button */}
-            <button
-              onClick={toggleMute}
-              className={`
-                w-12 h-12 rounded-full transition-all duration-200 flex items-center justify-center
-                ${isMuted
-                  ? 'bg-red-500 hover:bg-red-400 shadow-lg shadow-red-500/30'
-                  : 'bg-white/20 hover:bg-white/30'}
-              `}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? (
-                <MicOffIcon size={22} />
-              ) : (
-                <MicIcon size={22} />
-              )}
-            </button>
+            {/* Push-to-talk indicator OR Mute button */}
+            {isPushToTalkMode ? (
+              <div className="flex items-center gap-2">
+                <div
+                  className={`
+                    w-12 h-12 rounded-full transition-all duration-200 flex items-center justify-center
+                    ${isPushToTalkActive
+                      ? 'bg-green-400 shadow-lg shadow-green-400/50 animate-pulse'
+                      : 'bg-white/20'}
+                  `}
+                  title={`Hold ${pttKey} to talk`}
+                >
+                  {isPushToTalkActive ? (
+                    <MicIcon size={22} />
+                  ) : (
+                    <MicOffIcon size={22} />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white/90 text-xs font-medium">
+                    {isPushToTalkActive ? 'Transmitting' : 'Push to Talk'}
+                  </span>
+                  <kbd className="text-white/60 text-[10px] bg-black/20 px-1.5 py-0.5 rounded">
+                    Hold {pttKey}
+                  </kbd>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={toggleMute}
+                className={`
+                  w-12 h-12 rounded-full transition-all duration-200 flex items-center justify-center
+                  ${isMuted
+                    ? 'bg-red-500 hover:bg-red-400 shadow-lg shadow-red-500/30'
+                    : 'bg-white/20 hover:bg-white/30'}
+                `}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? (
+                  <MicOffIcon size={22} />
+                ) : (
+                  <MicIcon size={22} />
+                )}
+              </button>
+            )}
 
             {/* End call button */}
             <button

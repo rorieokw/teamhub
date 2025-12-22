@@ -71,16 +71,24 @@ export default function UserProfileModal({ userId, isOpen, onClose, onStartDM }:
           <div className="p-6 space-y-6">
             {/* Profile Header */}
             <div className="flex items-center gap-4">
-              <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg"
-                style={{
-                  background: user.nameColor
-                    ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
-                    : 'linear-gradient(135deg, #8b5cf6, #ec4899)',
-                }}
-              >
-                {user.avatarUrl || user.displayName?.charAt(0).toUpperCase() || 'U'}
-              </div>
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.displayName || 'User'}
+                  className="w-20 h-20 rounded-2xl object-cover shadow-lg"
+                />
+              ) : (
+                <div
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg"
+                  style={{
+                    background: user.nameColor
+                      ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
+                      : 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                  }}
+                >
+                  {user.displayName?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
               <div>
                 <p
                   className="text-xl font-bold"

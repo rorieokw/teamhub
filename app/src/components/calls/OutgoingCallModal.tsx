@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useCall } from '../../contexts/CallContext';
 
 // Phone off icon SVG
@@ -53,8 +54,8 @@ export function OutgoingCallModal() {
 
   if (!outgoingCall) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 max-w-sm w-full mx-4">
         {/* Calling animation */}
         <div className="flex flex-col items-center mb-6">
@@ -97,6 +98,7 @@ export function OutgoingCallModal() {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

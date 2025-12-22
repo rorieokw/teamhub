@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
 import { subscribeToAllUsers } from '../../services/users';
@@ -103,7 +104,7 @@ export default function QuickChatPopup({ isOpen, onClose }: QuickChatPopupProps)
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed bottom-4 right-4 w-80 h-[450px] glass rounded-2xl shadow-2xl z-[200] flex flex-col overflow-hidden animate-scale-in border border-white/10">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
@@ -270,6 +271,7 @@ export default function QuickChatPopup({ isOpen, onClose }: QuickChatPopupProps)
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -9,8 +9,13 @@ import {
   setNotificationSoundEnabled,
   previewNotificationSound,
 } from '../services/notificationSound';
+import {
+  getCallSettings,
+  saveCallSettings,
+  type VoiceMode,
+} from '../services/callSettings';
 
-type SettingsTab = 'shortcuts' | 'appearance' | 'account';
+type SettingsTab = 'shortcuts' | 'appearance' | 'calls' | 'account';
 
 const shortcutCategories = [
   {
@@ -55,10 +60,16 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('shortcuts');
   const userStats = useUserRank(currentUser?.uid);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('voice-activated');
+  const [pushToTalkKey, setPushToTalkKey] = useState('Space');
+  const [isRecordingKey, setIsRecordingKey] = useState(false);
 
-  // Load sound preference on mount
+  // Load preferences on mount
   useEffect(() => {
     setSoundEnabled(isNotificationSoundEnabled());
+    const callSettings = getCallSettings();
+    setVoiceMode(callSettings.voiceMode);
+    setPushToTalkKey(callSettings.pushToTalkKey);
   }, []);
 
   // Toggle notification sound
@@ -88,6 +99,15 @@ export default function Settings() {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+        </svg>
+      ),
+    },
+    {
+      id: 'calls',
+      label: 'Calls',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       ),
     },
@@ -210,6 +230,158 @@ export default function Settings() {
                   <p className="text-gray-400 text-sm">
                     More appearance options coming soon: custom accent colors, compact mode, and font size.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'calls' && (
+            <div className="space-y-6">
+              {/* Voice Mode */}
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Voice Mode</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <p className="text-gray-400 text-sm mb-4">
+                    Choose how your microphone is activated during calls.
+                  </p>
+
+                  {/* Voice Activated Option */}
+                  <button
+                    onClick={() => {
+                      setVoiceMode('voice-activated');
+                      saveCallSettings({ voiceMode: 'voice-activated' });
+                    }}
+                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                      voiceMode === 'voice-activated'
+                        ? 'border-purple-500 bg-purple-500/10'
+                        : 'border-white/10 hover:border-white/20 bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        voiceMode === 'voice-activated' ? 'bg-purple-500' : 'bg-white/10'
+                      }`}>
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">Voice Activated</p>
+                        <p className="text-gray-400 text-sm">Microphone is always on during calls</p>
+                      </div>
+                      {voiceMode === 'voice-activated' && (
+                        <div className="ml-auto">
+                          <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Push to Talk Option */}
+                  <button
+                    onClick={() => {
+                      setVoiceMode('push-to-talk');
+                      saveCallSettings({ voiceMode: 'push-to-talk' });
+                    }}
+                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                      voiceMode === 'push-to-talk'
+                        ? 'border-purple-500 bg-purple-500/10'
+                        : 'border-white/10 hover:border-white/20 bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        voiceMode === 'push-to-talk' ? 'bg-purple-500' : 'bg-white/10'
+                      }`}>
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">Push to Talk</p>
+                        <p className="text-gray-400 text-sm">Hold a key to transmit your voice</p>
+                      </div>
+                      {voiceMode === 'push-to-talk' && (
+                        <div className="ml-auto">
+                          <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Push to Talk Key Binding */}
+              {voiceMode === 'push-to-talk' && (
+                <div className="glass rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-white/10">
+                    <h3 className="text-lg font-semibold text-white">Push to Talk Key</h3>
+                  </div>
+                  <div className="p-5">
+                    <p className="text-gray-400 text-sm mb-4">
+                      Press a key while clicking the button below to set your push-to-talk key.
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => setIsRecordingKey(true)}
+                        onKeyDown={(e) => {
+                          if (isRecordingKey) {
+                            e.preventDefault();
+                            const key = e.key === ' ' ? 'Space' : e.key;
+                            setPushToTalkKey(key);
+                            saveCallSettings({ pushToTalkKey: key });
+                            setIsRecordingKey(false);
+                          }
+                        }}
+                        className={`px-6 py-3 rounded-xl font-medium transition-all ${
+                          isRecordingKey
+                            ? 'bg-purple-600 text-white animate-pulse'
+                            : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {isRecordingKey ? 'Press any key...' : 'Change Key'}
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400">Current key:</span>
+                        <kbd className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white font-mono">
+                          {pushToTalkKey}
+                        </kbd>
+                      </div>
+                    </div>
+                    {isRecordingKey && (
+                      <button
+                        onClick={() => setIsRecordingKey(false)}
+                        className="mt-3 text-sm text-gray-400 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Call Tips */}
+              <div className="glass rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">Call Tips</h4>
+                    <ul className="text-gray-400 text-sm space-y-1">
+                      <li>• Use a headset for best audio quality</li>
+                      <li>• Push-to-talk reduces background noise</li>
+                      <li>• You can call teammates from their profile or the chat</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>

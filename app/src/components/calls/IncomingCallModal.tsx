@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useCall } from '../../contexts/CallContext';
 
 // Phone icon SVG
@@ -103,8 +104,8 @@ export function IncomingCallModal() {
 
   if (!incomingCall) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 max-w-sm w-full mx-4 animate-pulse-slow">
         {/* Caller avatar */}
         <div className="flex flex-col items-center mb-6">
@@ -165,6 +166,7 @@ export function IncomingCallModal() {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
