@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   toggleVote,
-  closePoll,
+  closePollWithNotifications,
   reopenPoll,
   deletePoll,
   getTotalVotes,
   hasUserVoted,
   getOptionPercentage,
 } from '../../services/polls';
+import { notifyPollClosed } from '../../services/notifications';
 import type { Poll } from '../../types';
 
 interface PollCardProps {
@@ -28,8 +29,9 @@ const OPTION_COLORS = [
 ];
 
 export default function PollCard({ poll, compact = false, showActions = true }: PollCardProps) {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [isVoting, setIsVoting] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   // Ensure options is an array
   const options = Array.isArray(poll.options) ? poll.options : [];
@@ -58,14 +60,20 @@ export default function PollCard({ poll, compact = false, showActions = true }: 
   };
 
   const handleClose = async () => {
+    if (isClosing) return;
+    setIsClosing(true);
     try {
       if (poll.closed) {
         await reopenPoll(poll.id);
       } else {
-        await closePoll(poll.id);
+        // Close poll and notify all voters
+        const closerName = userProfile?.displayName || 'Someone';
+        await closePollWithNotifications(poll, closerName, notifyPollClosed);
       }
     } catch (error) {
       console.error('Failed to toggle poll status:', error);
+    } finally {
+      setIsClosing(false);
     }
   };
 
@@ -239,9 +247,10 @@ export default function PollCard({ poll, compact = false, showActions = true }: 
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
             <button
               onClick={handleClose}
-              className="px-3 py-1.5 text-xs text-white/60 hover:text-white/90 hover:bg-white/10 rounded-lg transition-colors"
+              disabled={isClosing}
+              className="px-3 py-1.5 text-xs text-white/60 hover:text-white/90 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
             >
-              {poll.closed ? 'Reopen Poll' : 'Close Poll'}
+              {isClosing ? 'Closing...' : poll.closed ? 'Reopen Poll' : 'Close Poll'}
             </button>
             <button
               onClick={handleDelete}

@@ -14,10 +14,13 @@ const statusConfig = {
   active: { color: 'bg-green-500', shadow: 'shadow-green-500/50', label: 'Active', badge: 'bg-green-500/20 text-green-400 border-green-500/30' },
   'on-hold': { color: 'bg-yellow-500', shadow: 'shadow-yellow-500/50', label: 'On Hold', badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
   completed: { color: 'bg-blue-500', shadow: 'shadow-blue-500/50', label: 'Completed', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  hidden: { color: 'bg-gray-500', shadow: 'shadow-gray-500/50', label: 'Hidden', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
 };
 
 export default function ProjectCard({ project, users = [], onEdit, onDelete }: ProjectCardProps) {
-  const status = statusConfig[project.status];
+  // Show "Hidden" status if project is hidden, otherwise show actual status
+  const displayStatus = project.hidden ? 'hidden' : project.status;
+  const status = statusConfig[displayStatus];
   const [sessions, setSessions] = useState<WorkSession[]>([]);
 
   // Get member users for this project

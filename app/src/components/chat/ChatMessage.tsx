@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { toggleReaction, editMessage, deleteMessage } from '../../services/messages';
+import { notifyReaction } from '../../services/notifications';
 import { QuickReactions } from './EmojiPicker';
 import EmojiPicker from './EmojiPicker';
 import RankBadge from '../ranks/RankBadge';
 import UserProfileModal from '../profile/UserProfileModal';
 import { isGifUrl } from '../../services/tenor';
 import { useAdmin } from '../../hooks/useAdmin';
+import { useAuth } from '../../contexts/AuthContext';
 import type { MessageWithReactions, User, UserStats } from '../../types';
 
 interface ChatMessageProps {
@@ -30,6 +32,7 @@ export default function ChatMessage({
   onStartDM,
 }: ChatMessageProps) {
   const { isAdmin } = useAdmin();
+  const { userProfile } = useAuth();
   const [showReactions, setShowReactions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -103,6 +106,18 @@ export default function ChatMessage({
 
     try {
       await toggleReaction(message.id, emoji, currentUserId, hasReacted);
+
+      // Send notification only when ADDING a reaction (not removing)
+      // and only if it's not your own message
+      if (!hasReacted && !isOwnMessage && userProfile && message.senderId) {
+        await notifyReaction(
+          message.senderId,
+          userProfile.displayName,
+          emoji,
+          message.content || '[Image]',
+          message.channelId
+        );
+      }
     } catch (err) {
       console.error('Failed to toggle reaction:', err);
     }
@@ -148,25 +163,25 @@ export default function ChatMessage({
 
   return (
     <div
-      className={`flex gap-4 py-2 px-5 hover:bg-white/5 transition-colors group relative ${
-        isOwnMessage ? 'bg-purple-500/5' : ''
-      }`}
+      className={`flex gap-3 px-5 hover:bg-white/5 transition-colors group relative ${
+        showAvatar ? 'pt-3 pb-1' : 'py-0.5'
+      } ${isOwnMessage ? 'bg-purple-500/5' : ''}`}
       onMouseEnter={() => setShowReactions(true)}
       onMouseLeave={() => {
         setShowReactions(false);
         setShowEmojiPicker(false);
       }}
     >
-      {showAvatar && (
+      {showAvatar ? (
         <div
           className={`w-10 h-10 rounded-full flex-shrink-0 overflow-hidden shadow-lg ${
             isOwnMessage
               ? 'bg-gradient-to-br from-purple-500 to-pink-500 shadow-purple-500/25'
               : 'bg-gradient-to-br from-blue-500 to-cyan-500 shadow-blue-500/25'
-          } flex items-center justify-center text-white font-bold`}
+          } flex items-center justify-center text-white font-bold cursor-pointer`}
+          onClick={() => !isOwnMessage && setShowProfile(true)}
         >
           {sender?.avatarUrl ? (
-            // Check if it's a URL (starts with http) or an emoji
             sender.avatarUrl.startsWith('http') ? (
               <img
                 src={sender.avatarUrl}
@@ -174,39 +189,43 @@ export default function ChatMessage({
                 className="w-full h-full object-cover"
               />
             ) : (
-              // It's an emoji avatar
               <span className="text-xl">{sender.avatarUrl}</span>
             )
           ) : (
             sender?.displayName?.charAt(0).toUpperCase() || '?'
           )}
         </div>
-      )}
-      {!showAvatar && <div className="w-10 flex-shrink-0" />}
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => !isOwnMessage && setShowProfile(true)}
-            className={`font-semibold ${!isOwnMessage ? 'hover:underline cursor-pointer' : ''}`}
-            style={{
-              color: sender?.nameColor || (isOwnMessage ? '#a855f7' : '#ffffff'),
-            }}
-          >
-            {sender?.displayName || 'Unknown User'}
-          </button>
-          {sender?.title && (
-            <span className="text-xs text-purple-400/70 font-medium">
-              {sender.title}
-            </span>
-          )}
-          {senderStats && (
-            <RankBadge rank={senderStats.rank} size="xs" />
-          )}
-          <span className="text-xs text-gray-600">
-            {formatTime(message.createdAt)}
+      ) : (
+        <div className="w-10 flex-shrink-0 flex items-center justify-center">
+          <span className="text-[10px] text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+            {formatTime(message.createdAt).replace(' ', '')}
           </span>
         </div>
+      )}
+
+      <div className="flex-1 min-w-0">
+        {showAvatar && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => !isOwnMessage && setShowProfile(true)}
+              className={`font-semibold ${!isOwnMessage ? 'hover:underline cursor-pointer' : ''}`}
+              style={{
+                color: sender?.nameColor || (isOwnMessage ? '#a855f7' : '#ffffff'),
+              }}
+            >
+              {sender?.title && (
+                <span className="text-gray-400 font-normal">[{sender.title}] </span>
+              )}
+              {sender?.displayName || 'Unknown User'}
+            </button>
+            {senderStats && (
+              <RankBadge rank={senderStats.rank} size="xs" />
+            )}
+            <span className="text-xs text-gray-600">
+              {formatTime(message.createdAt)}
+            </span>
+          </div>
+        )}
         {/* Message content - check if it's a GIF */}
         {isEditing ? (
           <div className="mt-1">

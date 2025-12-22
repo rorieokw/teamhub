@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import { subscribeToProjects } from '../services/projects';
 import {
   subscribeToMessages,
@@ -10,14 +11,16 @@ import {
   getDMChannelId,
   subscribeToLatestMessageTime,
   parseMentions,
+  subscribeToUserDMChannels,
+  getOtherUserFromDM,
 } from '../services/messages';
-import { subscribeToUsers } from '../services/users';
+import { subscribeToUsers, subscribeToAllUsers } from '../services/users';
 import {
   subscribeToReadStatus,
   markChannelAsRead,
   hasUnreadMessages,
 } from '../services/readStatus';
-import { notifyMention } from '../services/notifications';
+import { notifyMention, notifyDirectMessage } from '../services/notifications';
 import { subscribeToUsersPresence, isUserOnline } from '../services/presence';
 import { subscribeToUserStats } from '../services/ranks';
 import { subscribeToChannelPolls } from '../services/polls';
@@ -25,6 +28,7 @@ import ChatMessage from '../components/chat/ChatMessage';
 import ChatInput from '../components/chat/ChatInput';
 import RankBadge from '../components/ranks/RankBadge';
 import PollCard from '../components/polls/PollCard';
+import { CallButton } from '../components/calls';
 import type { MessageWithReactions, Project, User, UserPresence, Poll } from '../types';
 
 interface Channel {
@@ -33,10 +37,12 @@ interface Channel {
   type: 'general' | 'project' | 'dm';
   projectId?: string;
   otherUserId?: string; // For DMs
+  hidden?: boolean; // For hidden projects (admin only)
 }
 
 export default function Chat() {
   const { currentUser, userProfile } = useAuth();
+  const { isAdmin } = useAdmin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [dmChannels, setDmChannels] = useState<Channel[]>([]);
@@ -75,15 +81,15 @@ export default function Chat() {
     };
   }, [allMembers]);
 
-  // Subscribe to projects - show all projects for team chat
+  // Subscribe to projects - show all projects for team chat (admin sees hidden projects too)
   useEffect(() => {
     const unsubscribe = subscribeToProjects((data) => {
       setProjects(data);
       setLoading(false);
-    });
+    }, { includeHidden: isAdmin });
 
     return () => unsubscribe();
-  }, []);
+  }, [isAdmin]);
 
   // Build channels list from projects
   useEffect(() => {
@@ -97,6 +103,7 @@ export default function Chat() {
         name: project.name,
         type: 'project',
         projectId: project.id,
+        hidden: project.hidden,
       });
     });
 
@@ -134,20 +141,37 @@ export default function Chat() {
     return () => unsubscribe();
   }, [messages.map(m => m.senderId).join(',')]);
 
-  // Subscribe to all members from all projects for @mentions (real-time updates)
+  // Subscribe to all users for @mentions (real-time updates)
   useEffect(() => {
-    const allMemberIds = new Set<string>();
-    projects.forEach((p) => {
-      p.members.forEach((m) => allMemberIds.add(m));
-    });
-
-    if (allMemberIds.size === 0) return;
-
-    const unsubscribe = subscribeToUsers(Array.from(allMemberIds), (usersMap) => {
-      setAllMembers(Array.from(usersMap.values()));
+    const unsubscribe = subscribeToAllUsers((users) => {
+      setAllMembers(users);
     });
     return () => unsubscribe();
-  }, [projects.map(p => p.members.join(',')).join('|')]);
+  }, []);
+
+  // Load existing DM conversations from Firestore
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsubscribe = subscribeToUserDMChannels(currentUser.uid, (channelIds) => {
+      // Build DM channels from the channel IDs
+      const existingDMs: Channel[] = channelIds.map((channelId) => {
+        const otherUserId = getOtherUserFromDM(channelId, currentUser.uid);
+        const otherUser = allMembers.find((m) => m.id === otherUserId);
+
+        return {
+          id: channelId,
+          name: otherUser?.displayName || 'Unknown User',
+          type: 'dm' as const,
+          otherUserId: otherUserId || undefined,
+        };
+      });
+
+      setDmChannels(existingDMs);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, allMembers]);
 
   // Subscribe to presence data for all members
   useEffect(() => {
@@ -221,6 +245,16 @@ export default function Chat() {
         );
       }
     }
+
+    // Send DM notification if this is a direct message
+    if (activeChannel.type === 'dm' && activeChannel.otherUserId) {
+      await notifyDirectMessage(
+        activeChannel.otherUserId,
+        userProfile.displayName,
+        content || '[Image]',
+        activeChannel.id
+      );
+    }
   }
 
   // Start or open a DM with a user
@@ -287,6 +321,7 @@ export default function Chat() {
   }, [messages, channelPolls]);
 
   // Check if we should show avatar for a timeline item
+  // Group messages from same sender within 5 minutes
   function shouldShowAvatarForTimeline(index: number): boolean {
     if (index === 0) return true;
     const prevItem = timeline[index - 1];
@@ -297,9 +332,21 @@ export default function Chat() {
     // Always show avatar before a message if current is a poll
     if (currItem.type === 'poll') return true;
 
-    // For consecutive messages, check if same sender
+    // For consecutive messages, check if same sender AND within 5 minutes
     if (prevItem.type === 'message' && currItem.type === 'message') {
-      return prevItem.data.senderId !== currItem.data.senderId;
+      // Different sender = show avatar
+      if (prevItem.data.senderId !== currItem.data.senderId) return true;
+
+      // Same sender - check time difference
+      const prevTime = prevItem.timestamp?.toMillis() || 0;
+      const currTime = currItem.timestamp?.toMillis() || 0;
+      const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+      // If more than 5 minutes apart, show avatar
+      if (currTime - prevTime > fiveMinutes) return true;
+
+      // Same sender, within 5 minutes = hide avatar (group messages)
+      return false;
     }
 
     return true;
@@ -371,12 +418,19 @@ export default function Chat() {
                     className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center gap-2 ${
                       activeChannel?.id === channel.id
                         ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25'
+                        : channel.hidden
+                        ? 'text-gray-500 hover:bg-white/5 hover:text-gray-400'
                         : 'text-gray-400 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <span className="text-lg opacity-70">#</span>
                     <span className="font-medium truncate">{channel.name}</span>
-                    {channelHasUnread(channel.id) && activeChannel?.id !== channel.id && (
+                    {channel.hidden && (
+                      <span className="px-1.5 py-0.5 text-[10px] bg-gray-500/30 text-gray-400 rounded flex-shrink-0">
+                        Hidden
+                      </span>
+                    )}
+                    {channelHasUnread(channel.id) && activeChannel?.id !== channel.id && !channel.hidden && (
                       <span className="ml-auto w-2 h-2 bg-purple-500 rounded-full flex-shrink-0 animate-pulse"></span>
                     )}
                   </button>
@@ -537,7 +591,7 @@ export default function Chat() {
                         }`}
                       ></span>
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-white">
                         {getDMDisplayName(activeChannel)}
                       </h3>
@@ -545,6 +599,13 @@ export default function Chat() {
                         {online ? 'Online' : 'Offline'} • Direct Message
                       </p>
                     </div>
+                    {activeChannel.otherUserId && (
+                      <CallButton
+                        participantIds={[activeChannel.otherUserId]}
+                        participantName={getDMDisplayName(activeChannel)}
+                        size="md"
+                      />
+                    )}
                   </>
                 );
               })()}

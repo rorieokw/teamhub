@@ -1,8 +1,9 @@
 // Notification sound service using Web Audio API
 
 let audioContext: AudioContext | null = null;
+let audioUnlocked = false;
 
-// Initialize audio context (must be called from user interaction first time)
+// Initialize audio context
 function getAudioContext(): AudioContext {
   if (!audioContext) {
     audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -10,8 +11,54 @@ function getAudioContext(): AudioContext {
   return audioContext;
 }
 
+// Unlock audio on first user interaction (required by browser autoplay policy)
+function unlockAudio(): void {
+  if (audioUnlocked) return;
+
+  const ctx = getAudioContext();
+
+  // Create and play a silent buffer to unlock audio
+  const buffer = ctx.createBuffer(1, 1, 22050);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start(0);
+
+  // Also resume context if suspended
+  if (ctx.state === 'suspended') {
+    ctx.resume();
+  }
+
+  audioUnlocked = true;
+}
+
+// Set up unlock listeners on first load
+let listenersAdded = false;
+export function initAudioUnlock(): void {
+  if (listenersAdded) return;
+  listenersAdded = true;
+
+  const events = ['click', 'touchstart', 'keydown'];
+  const unlock = () => {
+    unlockAudio();
+    // Remove listeners after first unlock
+    events.forEach(event => {
+      document.removeEventListener(event, unlock, true);
+    });
+  };
+
+  events.forEach(event => {
+    document.addEventListener(event, unlock, true);
+  });
+}
+
+// Auto-initialize when module loads
+if (typeof window !== 'undefined') {
+  initAudioUnlock();
+}
+
 // Play a pleasant notification chime
-export function playNotificationSound(): void {
+export async function playNotificationSound(): Promise<void> {
   // Check if sound is enabled
   if (!isNotificationSoundEnabled()) return;
 
@@ -20,7 +67,13 @@ export function playNotificationSound(): void {
 
     // Resume context if suspended (browser autoplay policy)
     if (ctx.state === 'suspended') {
-      ctx.resume();
+      await ctx.resume();
+    }
+
+    // If still suspended, audio hasn't been unlocked yet - skip silently
+    if (ctx.state === 'suspended') {
+      console.log('Audio context still suspended - waiting for user interaction');
+      return;
     }
 
     const now = ctx.currentTime;

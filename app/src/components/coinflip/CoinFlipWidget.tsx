@@ -10,6 +10,33 @@ import {
 } from '../../services/coinflip';
 import type { CoinFlip, User } from '../../types';
 
+// Coin SVG icon for consistent rendering
+function CoinIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="12" r="10" fill="url(#coinGradient)" stroke="#b45309" strokeWidth="1.5"/>
+      <circle cx="12" cy="12" r="7" fill="none" stroke="#fbbf24" strokeWidth="1" opacity="0.5"/>
+      <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#92400e">$</text>
+      <defs>
+        <linearGradient id="coinGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#fde047"/>
+          <stop offset="50%" stopColor="#facc15"/>
+          <stop offset="100%" stopColor="#eab308"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// Hourglass SVG for waiting
+function HourglassIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 4h14M5 20h14M12 4v2c0 2-3 4-3 6s3 4 3 6v2M12 4v2c0 2 3 4 3 6s-3 4-3 6v2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 // Retro pixel art coin component
 function PixelCoin({ side, isFlipping, size = 64 }: { side: 'heads' | 'tails' | null; isFlipping: boolean; size?: number }) {
   const [frame, setFrame] = useState(0);
@@ -294,9 +321,9 @@ export default function CoinFlipWidget() {
       <div className="flex justify-end mb-3">
         <button
           onClick={() => setShowChallenge(true)}
-          className="px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+          className="px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
         >
-          <span className="text-sm">🪙</span>
+          <CoinIcon className="w-4 h-4" />
           Flip
         </button>
       </div>
@@ -313,7 +340,7 @@ export default function CoinFlipWidget() {
                 className="flex items-center justify-between p-2 bg-yellow-500/10 rounded-lg mb-2"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">🪙</span>
+                  <CoinIcon className="w-6 h-6" />
                   <div>
                     <span className="text-sm text-white">{challenger?.displayName}</span>
                     {flip.reason && (
@@ -352,7 +379,7 @@ export default function CoinFlipWidget() {
                 key={flip.id}
                 className="flex items-center gap-2 p-2 bg-white/5 rounded-lg mb-2"
               >
-                <span className="text-lg">⏳</span>
+                <HourglassIcon className="w-5 h-5 text-gray-400" />
                 <div>
                   <span className="text-sm text-gray-400">{opponent?.displayName}</span>
                   <p className="text-xs text-gray-500">You called: {flip.challengerCall}</p>
@@ -386,8 +413,8 @@ export default function CoinFlipWidget() {
                     </p>
                   </div>
                 </div>
-                <span className={`text-xs ${isWinner ? 'text-green-400' : 'text-red-400'}`}>
-                  {isWinner ? '🎉 Won!' : 'Lost'}
+                <span className={`text-xs font-medium ${isWinner ? 'text-green-400' : 'text-red-400'}`}>
+                  {isWinner ? 'Won!' : 'Lost'}
                 </span>
               </div>
             );
@@ -398,7 +425,9 @@ export default function CoinFlipWidget() {
       {/* Empty State */}
       {flips.length === 0 && (
         <div className="text-center py-4">
-          <div className="text-3xl mb-2">🪙</div>
+          <div className="flex justify-center mb-2">
+            <CoinIcon className="w-10 h-10" />
+          </div>
           <p className="text-sm text-gray-400">No coin flips</p>
           <button
             onClick={() => setShowChallenge(true)}

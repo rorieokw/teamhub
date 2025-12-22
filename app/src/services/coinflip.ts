@@ -99,24 +99,20 @@ export function subscribeToUserCoinFlips(
       ...doc.data(),
     })) as CoinFlip[];
 
-    // Filter to pending, flipping, or recent completed (last 5 minutes)
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    // Filter out declined flips, keep pending/flipping and all completed
     const relevantFlips = flips
-      .filter((f) => {
-        if (f.status === 'pending' || f.status === 'flipping') return true;
-        if (f.status === 'completed' && f.completedAt) {
-          const completedTime = f.completedAt.toMillis?.() || 0;
-          return completedTime > fiveMinutesAgo;
-        }
-        return false;
-      })
+      .filter((f) => f.status !== 'declined')
       .sort((a, b) => {
         const aTime = a.createdAt?.toMillis?.() || 0;
         const bTime = b.createdAt?.toMillis?.() || 0;
         return bTime - aTime;
       });
 
-    callback(relevantFlips);
+    // Keep pending/flipping flips, and limit completed to last 10
+    const pendingFlips = relevantFlips.filter(f => f.status === 'pending' || f.status === 'flipping');
+    const completedFlips = relevantFlips.filter(f => f.status === 'completed').slice(0, 10);
+
+    callback([...pendingFlips, ...completedFlips]);
   });
 }
 

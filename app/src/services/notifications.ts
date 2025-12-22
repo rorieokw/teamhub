@@ -124,10 +124,60 @@ export async function notifyComment(
 ): Promise<void> {
   await createNotification({
     userId: taskOwnerId,
-    type: 'task-assigned', // reusing type for now
+    type: 'comment',
     title: 'New Comment',
     message: `${commenterName} commented on "${taskTitle}": "${commentPreview.slice(0, 40)}${commentPreview.length > 40 ? '...' : ''}"`,
     data: { taskId, projectId },
+  });
+}
+
+// Helper to create direct message notification
+export async function notifyDirectMessage(
+  recipientUserId: string,
+  senderName: string,
+  messagePreview: string,
+  channelId: string
+): Promise<void> {
+  await createNotification({
+    userId: recipientUserId,
+    type: 'direct-message',
+    title: 'New Direct Message',
+    message: `${senderName}: "${messagePreview.slice(0, 50)}${messagePreview.length > 50 ? '...' : ''}"`,
+    data: { channelId, senderName },
+  });
+}
+
+// Helper to create reaction notification
+export async function notifyReaction(
+  messageOwnerId: string,
+  reactorName: string,
+  emoji: string,
+  messagePreview: string,
+  channelId: string
+): Promise<void> {
+  await createNotification({
+    userId: messageOwnerId,
+    type: 'reaction',
+    title: 'Reaction to your message',
+    message: `${reactorName} reacted ${emoji} to "${messagePreview.slice(0, 40)}${messagePreview.length > 40 ? '...' : ''}"`,
+    data: { channelId },
+  });
+}
+
+// Helper to create poll closed notification
+export async function notifyPollClosed(
+  voterUserId: string,
+  pollQuestion: string,
+  closedByName: string,
+  channelId: string,
+  pollId: string
+): Promise<void> {
+  await createNotification({
+    userId: voterUserId,
+    type: 'poll-closed',
+    title: 'Poll Closed',
+    message: `${closedByName} closed the poll: "${pollQuestion.slice(0, 40)}${pollQuestion.length > 40 ? '...' : ''}"`,
+    data: { channelId, pollId },
   });
 }
 
@@ -164,5 +214,21 @@ export async function notifyTaskReassigned(
     title: 'Task Reassigned to You',
     message: `${reassignedByName} assigned you "${taskTitle}" in ${projectName}`,
     data: { taskId, projectId },
+  });
+}
+
+// Notify admin when a new user signs up
+export async function notifyAdminNewUserSignup(
+  adminUserId: string,
+  newUserName: string,
+  newUserEmail: string,
+  newUserId: string
+): Promise<void> {
+  await createNotification({
+    userId: adminUserId,
+    type: 'new-user-signup',
+    title: 'New User Signup',
+    message: `${newUserName} (${newUserEmail}) just signed up and is waiting for approval`,
+    data: { newUserId, newUserEmail },
   });
 }

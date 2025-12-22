@@ -303,5 +303,33 @@ service cloud.firestore {
                     && (request.auth.uid == resource.data.whitePlayerId
                         || request.auth.uid == resource.data.blackPlayerId);
     }
+
+    // Audio/Video calls collection
+    match /calls/{callId} {
+      // Participants can read calls they're in
+      allow read: if request.auth != null
+                  && request.auth.uid in resource.data.participants;
+
+      // Allow querying for calls (for incoming call detection)
+      allow list: if request.auth != null;
+
+      // Authenticated users can create calls
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.callerId;
+
+      // Participants can update calls (for status changes)
+      allow update: if request.auth != null
+                    && request.auth.uid in resource.data.participants;
+
+      // WebRTC signaling subcollection
+      match /signals/{signalId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // ICE candidates subcollection
+      match /candidates/{candidateId} {
+        allow read, write: if request.auth != null;
+      }
+    }
   }
 }

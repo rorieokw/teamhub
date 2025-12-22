@@ -158,12 +158,60 @@ export async function updateUserApprovalStatus(
 }
 
 // Subscribe to pending users (for admin panel)
+// Includes users with approvalStatus === 'pending' OR users without the field (legacy users needing approval)
 export function subscribeToPendingUsers(
+  callback: (users: User[]) => void
+): () => void {
+  // Query all users and filter client-side to include:
+  // 1. Users with approvalStatus === 'pending'
+  // 2. Users without approvalStatus field (legacy users who need to be approved)
+  const q = query(
+    collection(db, 'users'),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const users: User[] = snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as User[];
+
+    // Filter to pending or legacy users (no approvalStatus field)
+    const pendingUsers = users.filter(user =>
+      user.approvalStatus === 'pending' || user.approvalStatus === undefined
+    );
+
+    callback(pendingUsers);
+  });
+}
+
+// Approve all legacy users (users without approvalStatus field)
+export async function approveAllLegacyUsers(): Promise<number> {
+  const q = query(collection(db, 'users'));
+  const snapshot = await getDocs(q);
+
+  let count = 0;
+  for (const docSnap of snapshot.docs) {
+    const data = docSnap.data();
+    // If user has no approvalStatus or it's undefined, approve them
+    if (data.approvalStatus === undefined || data.approvalStatus === null) {
+      await updateDoc(doc(db, 'users', docSnap.id), { approvalStatus: 'approved' });
+      count++;
+    }
+  }
+
+  return count;
+}
+
+// Subscribe to approved/whitelisted users (for admin panel)
+// Only includes users with explicit approvalStatus === 'approved'
+export function subscribeToApprovedUsers(
   callback: (users: User[]) => void
 ): () => void {
   const q = query(
     collection(db, 'users'),
-    where('approvalStatus', '==', 'pending'),
+    where('approvalStatus', '==', 'approved'),
     orderBy('createdAt', 'desc')
   );
 
@@ -172,6 +220,7 @@ export function subscribeToPendingUsers(
       id: doc.id,
       ...doc.data(),
     })) as User[];
+
     callback(users);
   });
 }

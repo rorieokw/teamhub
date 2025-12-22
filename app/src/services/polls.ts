@@ -247,6 +247,33 @@ export async function closePoll(pollId: string): Promise<void> {
   await updateDoc(pollRef, { closed: true });
 }
 
+// Close a poll and notify all voters
+export async function closePollWithNotifications(
+  poll: Poll,
+  closedByName: string,
+  notifyCallback: (voterId: string, question: string, closedByName: string, channelId: string, pollId: string) => Promise<void>
+): Promise<void> {
+  // Close the poll
+  await closePoll(poll.id);
+
+  // Get all unique voters
+  const voters = new Set<string>();
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  options.forEach((opt) => {
+    const votes = Array.isArray(opt.votes) ? opt.votes : [];
+    votes.forEach((userId) => voters.add(userId));
+  });
+
+  // Notify each voter (except the one who closed it)
+  for (const voterId of voters) {
+    try {
+      await notifyCallback(voterId, poll.question, closedByName, poll.channelId, poll.id);
+    } catch (err) {
+      console.error('Failed to notify voter:', err);
+    }
+  }
+}
+
 // Reopen a poll
 export async function reopenPoll(pollId: string): Promise<void> {
   const pollRef = doc(db, COLLECTION, pollId);

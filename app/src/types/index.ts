@@ -38,6 +38,7 @@ export interface Project {
   createdBy: string;
   deadline?: Timestamp;
   githubUrl?: string;
+  hidden?: boolean; // Admin only - hides project from non-admin users
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -91,7 +92,7 @@ export interface Message {
 export interface Notification {
   id: string;
   userId: string;
-  type: 'task-assigned' | 'project-update' | 'mention';
+  type: 'task-assigned' | 'project-update' | 'mention' | 'new-user-signup' | 'direct-message' | 'reaction' | 'poll-closed' | 'comment';
   title: string;
   message: string;
   read: boolean;
@@ -441,4 +442,42 @@ export interface CoinFlip {
   reason?: string; // Optional reason for the flip
   createdAt: Timestamp;
   completedAt?: Timestamp;
+}
+
+// ============================================
+// AUDIO CALLS (WebRTC)
+// ============================================
+
+export type CallStatus = 'ringing' | 'active' | 'ended' | 'declined' | 'missed';
+
+export interface Call {
+  id: string;
+  type: 'audio'; // Can extend to 'video' later
+  callerId: string;
+  callerName: string;
+  callerAvatar?: string;
+  participants: string[]; // All participant user IDs
+  status: CallStatus;
+  startedAt?: Timestamp;
+  endedAt?: Timestamp;
+  createdAt: Timestamp;
+}
+
+// WebRTC signaling - stored in subcollection calls/{callId}/participants/{odlUser}
+export interface CallParticipant {
+  odlUser: string;
+  odlUserName: string;
+  joined: boolean;
+  muted: boolean;
+  offer?: RTCSessionDescriptionInit;
+  answer?: RTCSessionDescriptionInit;
+  updatedAt: Timestamp;
+}
+
+// ICE candidates - stored in subcollection calls/{callId}/participants/{odlUser}/candidates
+export interface IceCandidate {
+  odlUser: string;
+  targetUser: string;
+  candidate: RTCIceCandidateInit;
+  createdAt: Timestamp;
 }

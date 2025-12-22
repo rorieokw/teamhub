@@ -5,11 +5,12 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { User, ApprovalStatus } from '../types';
 import { getAppSettings } from './settings';
-import { isAdminEmail } from './admin';
+import { isAdminEmail, getAdminEmails } from './admin';
+import { notifyAdminNewUserSignup } from './notifications';
 
 export async function signUp(
   email: string,
@@ -39,6 +40,32 @@ export async function signUp(
     approvalStatus,
     createdAt: serverTimestamp(),
   });
+
+  // Notify admins if a new user needs approval (whitelist mode)
+  if (approvalStatus === 'pending') {
+    try {
+      // Get admin user IDs by querying for users with admin emails
+      const adminEmails = getAdminEmails();
+      for (const adminEmail of adminEmails) {
+        const adminQuery = query(
+          collection(db, 'users'),
+          where('email', '==', adminEmail)
+        );
+        const adminSnapshot = await getDocs(adminQuery);
+        if (!adminSnapshot.empty) {
+          const adminUser = adminSnapshot.docs[0];
+          await notifyAdminNewUserSignup(
+            adminUser.id,
+            displayName,
+            email,
+            user.uid
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Failed to notify admins of new signup:', err);
+    }
+  }
 
   return user;
 }

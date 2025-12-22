@@ -8,6 +8,7 @@ import {
   adminDeletePoll,
   adminDeleteProject,
   adminUpdateProject,
+  adminToggleProjectVisibility,
   adminDeleteTask,
   adminSetUserTitle,
   adminBulkDeleteMessages,
@@ -31,7 +32,7 @@ import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestor
 import { db } from '../services/firebase';
 import type { User, Poll, Message, Project, Task } from '../types';
 import { subscribeToAppSettings, updateAppSettings } from '../services/settings';
-import { updateUserApprovalStatus, subscribeToPendingUsers } from '../services/users';
+import { updateUserApprovalStatus, subscribeToPendingUsers, subscribeToApprovedUsers, approveAllLegacyUsers } from '../services/users';
 import type { AppSettings } from '../types';
 
 type TabType = 'overview' | 'messages' | 'users' | 'projects' | 'tasks' | 'polls' | 'announcements' | 'logs' | 'security';
@@ -84,7 +85,9 @@ export default function AdminPanel() {
   // Security / Whitelist
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<User[]>([]);
   const [togglingWhitelist, setTogglingWhitelist] = useState(false);
+  const [approvingLegacy, setApprovingLegacy] = useState(false);
 
   // Redirect if not admin
   useEffect(() => {
@@ -149,6 +152,9 @@ export default function AdminPanel() {
     // Subscribe to pending users
     const unsubPendingUsers = subscribeToPendingUsers(setPendingUsers);
 
+    // Subscribe to approved/whitelisted users
+    const unsubApprovedUsers = subscribeToApprovedUsers(setApprovedUsers);
+
     return () => {
       unsubMessages();
       unsubPolls();
@@ -156,6 +162,7 @@ export default function AdminPanel() {
       unsubLogs();
       unsubSettings();
       unsubPendingUsers();
+      unsubApprovedUsers();
     };
   }, [isAdmin]);
 
@@ -249,6 +256,27 @@ export default function AdminPanel() {
       setEditingProject(null);
     } catch (error) {
       console.error('Failed to update project:', error);
+    }
+  };
+
+  const handleToggleProjectVisibility = async (project: Project) => {
+    try {
+      const newHiddenState = !project.hidden;
+      await adminToggleProjectVisibility(project.id, newHiddenState);
+      setProjects(projects.map(p =>
+        p.id === project.id ? { ...p, hidden: newHiddenState } : p
+      ));
+      if (currentUser && userProfile) {
+        await logAdminAction(
+          newHiddenState ? 'Hid project from users' : 'Made project visible to users',
+          currentUser.uid,
+          userProfile.displayName,
+          project.id,
+          project.name
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle project visibility:', error);
     }
   };
 
@@ -416,6 +444,33 @@ export default function AdminPanel() {
       await logAdminAction('Rejected user', currentUser.uid, userProfile.displayName, user.id, user.displayName);
     } catch (error) {
       console.error('Failed to reject user:', error);
+    }
+  };
+
+  const handleRevokeApproval = async (user: User) => {
+    if (!currentUser || !userProfile) return;
+    if (!confirm(`Are you sure you want to remove ${user.displayName} from the whitelist? They will need to be re-approved to access the app.`)) return;
+    try {
+      await updateUserApprovalStatus(user.id, 'pending');
+      await logAdminAction('Revoked user approval', currentUser.uid, userProfile.displayName, user.id, user.displayName);
+    } catch (error) {
+      console.error('Failed to revoke approval:', error);
+    }
+  };
+
+  const handleApproveAllLegacyUsers = async () => {
+    if (!currentUser || !userProfile) return;
+    if (pendingUsers.length === 0) return;
+    if (!confirm(`Approve all ${pendingUsers.length} pending/legacy users?`)) return;
+
+    setApprovingLegacy(true);
+    try {
+      const count = await approveAllLegacyUsers();
+      await logAdminAction('Bulk approved legacy users', currentUser.uid, userProfile.displayName, undefined, undefined, `${count} users approved`);
+    } catch (error) {
+      console.error('Failed to approve legacy users:', error);
+    } finally {
+      setApprovingLegacy(false);
     }
   };
 
@@ -840,13 +895,14 @@ export default function AdminPanel() {
                     <th className="text-left p-3 text-xs font-medium text-gray-400">Project</th>
                     <th className="text-left p-3 text-xs font-medium text-gray-400">Owner</th>
                     <th className="text-left p-3 text-xs font-medium text-gray-400">Members</th>
+                    <th className="text-left p-3 text-xs font-medium text-gray-400">Visibility</th>
                     <th className="text-left p-3 text-xs font-medium text-gray-400">Created</th>
                     <th className="text-right p-3 text-xs font-medium text-gray-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {filteredProjects.map((project) => (
-                    <tr key={project.id} className="hover:bg-white/5">
+                    <tr key={project.id} className={`hover:bg-white/5 ${project.hidden ? 'opacity-60' : ''}`}>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <div
@@ -856,6 +912,11 @@ export default function AdminPanel() {
                             📁
                           </div>
                           <span className="text-sm text-white">{project.name}</span>
+                          {project.hidden && (
+                            <span className="px-1.5 py-0.5 text-xs bg-gray-500/20 text-gray-400 rounded">
+                              Hidden
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-3">
@@ -863,6 +924,18 @@ export default function AdminPanel() {
                       </td>
                       <td className="p-3">
                         <span className="text-sm text-gray-400">{project.members?.length || 1}</span>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => handleToggleProjectVisibility(project)}
+                          className={`px-2 py-1 text-xs rounded-lg transition-colors ${
+                            project.hidden
+                              ? 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
+                              : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                          }`}
+                        >
+                          {project.hidden ? 'Hidden' : 'Visible'}
+                        </button>
                       </td>
                       <td className="p-3">
                         <span className="text-xs text-gray-500">{formatDate(project.createdAt)}</span>
@@ -1383,11 +1456,37 @@ export default function AdminPanel() {
                   <h3 className="font-semibold text-white">Pending Approvals</h3>
                   <p className="text-xs text-gray-400">Users waiting for access approval</p>
                 </div>
-                {pendingUsers.length > 0 && (
-                  <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium">
-                    {pendingUsers.length} pending
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {pendingUsers.length > 0 && (
+                    <>
+                      <button
+                        onClick={handleApproveAllLegacyUsers}
+                        disabled={approvingLegacy}
+                        className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      >
+                        {approvingLegacy ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Approving...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Approve All
+                          </>
+                        )}
+                      </button>
+                      <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium">
+                        {pendingUsers.length} pending
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             <div className="max-h-[400px] overflow-y-auto">
@@ -1438,6 +1537,69 @@ export default function AdminPanel() {
                             Reject
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Whitelisted Users */}
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-white">Whitelisted Users</h3>
+                  <p className="text-xs text-gray-400">Users with approved access</p>
+                </div>
+                {approvedUsers.length > 0 && (
+                  <span className="px-2.5 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-medium">
+                    {approvedUsers.length} approved
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto">
+              {approvedUsers.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-500/20 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400">No whitelisted users yet</p>
+                  <p className="text-gray-500 text-sm mt-1">Approved users will appear here</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {approvedUsers.map((user) => (
+                    <div key={user.id} className="p-4 hover:bg-white/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium overflow-hidden">
+                            {user.avatarUrl?.startsWith('http') ? (
+                              <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                            ) : user.avatarUrl ? (
+                              <span className="text-lg">{user.avatarUrl}</span>
+                            ) : (
+                              user.displayName?.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">{user.displayName}</p>
+                            <p className="text-gray-400 text-sm">{user.email}</p>
+                            <p className="text-gray-500 text-xs mt-0.5">
+                              Approved {formatRelativeTime(user.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRevokeApproval(user)}
+                          className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm font-medium"
+                        >
+                          Remove from Whitelist
+                        </button>
                       </div>
                     </div>
                   ))}

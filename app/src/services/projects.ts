@@ -17,7 +17,8 @@ import { awardProjectCreated } from './ranks';
 const COLLECTION = 'projects';
 
 export function subscribeToProjects(
-  callback: (projects: Project[]) => void
+  callback: (projects: Project[]) => void,
+  options?: { includeHidden?: boolean }
 ): () => void {
   const q = query(
     collection(db, COLLECTION),
@@ -25,10 +26,16 @@ export function subscribeToProjects(
   );
 
   return onSnapshot(q, (snapshot) => {
-    const projects: Project[] = snapshot.docs.map((doc) => ({
+    let projects: Project[] = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Project[];
+
+    // Filter out hidden projects unless includeHidden is true (admin view)
+    if (!options?.includeHidden) {
+      projects = projects.filter(p => !p.hidden);
+    }
+
     callback(projects);
   });
 }

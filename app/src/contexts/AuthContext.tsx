@@ -112,11 +112,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // User is approved if:
   // 1. They're an admin, OR
   // 2. Whitelist is disabled, OR
-  // 3. Whitelist is enabled AND they're approved, OR
-  // 4. They have a profile but no approvalStatus (existing user grandfathered in)
-  const isExistingUser = Boolean(userProfile && !approvalStatus);
-  const isApproved = isAdmin || !whitelistEnabled || approvalStatus === 'approved' || isExistingUser;
-  const isPendingApproval = whitelistEnabled && !isAdmin && approvalStatus === 'pending';
+  // 3. Whitelist is enabled AND they have approvalStatus === 'approved'
+  // Note: Users without approvalStatus are treated as needing approval when whitelist is enabled
+  const isApproved = isAdmin || !whitelistEnabled || approvalStatus === 'approved';
+
+  // User is pending if whitelist enabled, not admin, and either:
+  // - explicitly pending, OR
+  // - no approval status set (legacy users need to be approved)
+  const isPendingApproval = whitelistEnabled && !isAdmin && (approvalStatus === 'pending' || !approvalStatus);
   const isRejected = whitelistEnabled && !isAdmin && approvalStatus === 'rejected';
 
   const value = {

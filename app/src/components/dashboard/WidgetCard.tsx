@@ -4,6 +4,24 @@ import type { ReactNode } from 'react';
 import type { WidgetId } from '../../types';
 import { WIDGET_REGISTRY } from '../../services/dashboardLayout';
 
+// SVG coin icon for consistent rendering
+function CoinIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="12" r="10" fill="url(#coinGradientWidget)" stroke="#b45309" strokeWidth="1.5"/>
+      <circle cx="12" cy="12" r="7" fill="none" stroke="#fbbf24" strokeWidth="1" opacity="0.5"/>
+      <text x="12" y="16" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#92400e">$</text>
+      <defs>
+        <linearGradient id="coinGradientWidget" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#fde047"/>
+          <stop offset="50%" stopColor="#facc15"/>
+          <stop offset="100%" stopColor="#eab308"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 interface WidgetCardProps {
   id: WidgetId;
   children: ReactNode;
@@ -49,7 +67,11 @@ export default function WidgetCard({ id, children, isEditMode }: WidgetCardProps
           {...(isEditMode ? { ...attributes, ...listeners } : {})}
         >
           <div className="flex items-center gap-2">
-            <span className="text-lg">{widgetInfo.icon}</span>
+            {id === 'coinflip' ? (
+              <CoinIcon className="w-5 h-5" />
+            ) : (
+              <span className="text-lg">{widgetInfo.icon}</span>
+            )}
             <h3 className="text-sm font-semibold text-white">{widgetInfo.name}</h3>
           </div>
           {isEditMode && (

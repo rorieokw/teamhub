@@ -6,6 +6,7 @@ import { signOut } from '../../services/auth';
 import { subscribeToUserInvites, acceptInvite, declineInvite } from '../../services/invites';
 import { subscribeToNotifications, markAsRead, markAllAsRead } from '../../services/notifications';
 import SearchModal from '../search/SearchModal';
+import QuickChatPopup from '../chat/QuickChatPopup';
 import type { ProjectInvite, Notification } from '../../types';
 
 interface HeaderProps {
@@ -22,6 +23,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [processingInvite, setProcessingInvite] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [showQuickChat, setShowQuickChat] = useState(false);
 
   // Keyboard shortcut for search (Ctrl/Cmd + K)
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -89,6 +91,35 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   const unreadNotifications = notifications.filter((n) => !n.read);
   const totalUnread = invites.length + unreadNotifications.length;
+
+  // Get the correct URL for a notification based on its type
+  function getNotificationUrl(notification: Notification): string {
+    const data = notification.data as Record<string, string> | undefined;
+
+    switch (notification.type) {
+      case 'mention':
+      case 'direct-message':
+      case 'reaction':
+      case 'poll-closed':
+        // Navigate to chat - the channelId is stored in data
+        return '/chat';
+      case 'task-assigned':
+      case 'comment':
+        // Navigate to tasks page
+        return '/tasks';
+      case 'project-update':
+        // Navigate to the specific project
+        if (data?.projectId) {
+          return `/projects/${data.projectId}`;
+        }
+        return '/projects';
+      case 'new-user-signup':
+        // Navigate to admin panel security tab
+        return '/admin';
+      default:
+        return '/';
+    }
+  }
 
   return (
     <header className="h-14 glass-dark flex items-center justify-between px-4 md:px-6 border-b border-white/5 relative z-50">
@@ -200,7 +231,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     {notifications.slice(0, 10).map((notification) => (
                       <Link
                         key={notification.id}
-                        to="/tasks"
+                        to={getNotificationUrl(notification)}
                         onClick={() => {
                           if (!notification.read) {
                             handleMarkAsRead(notification.id);
@@ -222,6 +253,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
                             <p className="text-gray-400 text-xs mt-0.5">
                               {notification.message}
                             </p>
+                            <p className="text-xs text-purple-400/70 mt-1">
+                              {notification.type === 'mention' && 'Go to Chat'}
+                              {notification.type === 'direct-message' && 'Go to Chat'}
+                              {notification.type === 'reaction' && 'Go to Chat'}
+                              {notification.type === 'poll-closed' && 'Go to Chat'}
+                              {notification.type === 'task-assigned' && 'Go to Tasks'}
+                              {notification.type === 'comment' && 'Go to Tasks'}
+                              {notification.type === 'project-update' && 'Go to Project'}
+                              {notification.type === 'new-user-signup' && 'Go to Admin Panel'}
+                            </p>
                           </div>
                         </div>
                       </Link>
@@ -240,8 +281,20 @@ export default function Header({ onMenuClick }: HeaderProps) {
           )}
         </div>
 
-        {/* Messages */}
-        <button className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+        {/* Messages / Quick Chat */}
+        <button
+          onClick={() => {
+            setShowQuickChat(!showQuickChat);
+            setShowNotifications(false);
+            setShowUserMenu(false);
+          }}
+          className={`p-2 transition-colors rounded-lg ${
+            showQuickChat
+              ? 'text-purple-400 bg-purple-500/20'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+          }`}
+          title="Quick Chat"
+        >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
@@ -286,8 +339,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
             className="flex items-center gap-2 p-1.5 rounded-full hover:bg-white/5 transition-colors"
           >
             <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-medium text-sm">
-                {userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-medium text-sm overflow-hidden">
+                {userProfile?.avatarUrl?.startsWith('http') ? (
+                  <img src={userProfile.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : userProfile?.avatarUrl ? (
+                  <span className="text-base">{userProfile.avatarUrl}</span>
+                ) : (
+                  userProfile?.displayName?.charAt(0).toUpperCase() || 'U'
+                )}
               </div>
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 status-online rounded-full border-2 border-[#2d2a4a]"></div>
             </div>
@@ -297,8 +356,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <div className="absolute right-0 mt-2 w-56 glass rounded-xl shadow-2xl z-[100] animate-scale-in overflow-hidden">
               <div className="p-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold">
-                    {userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold overflow-hidden">
+                    {userProfile?.avatarUrl?.startsWith('http') ? (
+                      <img src={userProfile.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : userProfile?.avatarUrl ? (
+                      <span className="text-lg">{userProfile.avatarUrl}</span>
+                    ) : (
+                      userProfile?.displayName?.charAt(0).toUpperCase() || 'U'
+                    )}
                   </div>
                   <div>
                     <p className="text-white font-medium">{userProfile?.displayName}</p>
@@ -339,6 +404,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
       {/* Search Modal */}
       <SearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />
+
+      {/* Quick Chat Popup */}
+      <QuickChatPopup isOpen={showQuickChat} onClose={() => setShowQuickChat(false)} />
     </header>
   );
 }

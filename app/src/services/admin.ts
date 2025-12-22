@@ -10,6 +10,11 @@ export function isAdminEmail(email: string | null | undefined): boolean {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
+// Get admin emails array (for querying)
+export function getAdminEmails(): string[] {
+  return ADMIN_EMAILS;
+}
+
 import { doc, deleteDoc, collection, getDocs, query, orderBy, updateDoc, addDoc, serverTimestamp, onSnapshot, limit as firestoreLimit, where } from 'firebase/firestore';
 import { db } from './firebase';
 import type { User, Message, Project, Task } from '../types';
@@ -85,8 +90,12 @@ export async function adminDeleteProject(projectId: string): Promise<void> {
   await deleteDoc(doc(db, 'projects', projectId));
 }
 
-export async function adminUpdateProject(projectId: string, data: { name?: string; description?: string }): Promise<void> {
+export async function adminUpdateProject(projectId: string, data: { name?: string; description?: string; hidden?: boolean }): Promise<void> {
   await updateDoc(doc(db, 'projects', projectId), data);
+}
+
+export async function adminToggleProjectVisibility(projectId: string, hidden: boolean): Promise<void> {
+  await updateDoc(doc(db, 'projects', projectId), { hidden });
 }
 
 // ==================== TASK MANAGEMENT ====================

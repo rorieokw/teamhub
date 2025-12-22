@@ -160,6 +160,37 @@ export function getOtherUserFromDM(channelId: string, currentUserId: string): st
   return parts[0] === currentUserId ? parts[1] : parts[0];
 }
 
+// Subscribe to all DM channels for a user (to show existing conversations)
+export function subscribeToUserDMChannels(
+  userId: string,
+  callback: (channelIds: string[]) => void
+): () => void {
+  // Query all messages where the channel ID starts with 'dm-' and contains the user's ID
+  const q = query(
+    collection(db, COLLECTION),
+    where('channelId', '>=', 'dm-'),
+    where('channelId', '<=', 'dm-\uf8ff'),
+    orderBy('channelId'),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const channelSet = new Set<string>();
+
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      const channelId = data.channelId as string;
+
+      // Check if this DM involves the current user
+      if (channelId.includes(userId)) {
+        channelSet.add(channelId);
+      }
+    });
+
+    callback(Array.from(channelSet));
+  });
+}
+
 // Subscribe to latest message time for a channel (for unread indicators)
 export function subscribeToLatestMessageTime(
   channelId: string,

@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { CallProvider } from './contexts/CallContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import { IncomingCallModal, OutgoingCallModal, ActiveCallBar, CallErrorToast } from './components/calls';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
@@ -23,18 +25,24 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<Signup />} />
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <Layout />
-                  </ProtectedRoute>
-                }
-              >
+          <CallProvider>
+            <ToastProvider>
+              <ErrorBoundary>
+                {/* Global call components */}
+                <IncomingCallModal />
+                <OutgoingCallModal />
+                <ActiveCallBar />
+                <CallErrorToast />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<Signup />} />
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <Layout />
+                    </ProtectedRoute>
+                  }
+                >
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/projects/:id" element={<ProjectDetail />} />
@@ -47,9 +55,10 @@ function App() {
                 <Route path="/admin" element={<AdminPanel />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            </ErrorBoundary>
-          </ToastProvider>
+              </Routes>
+              </ErrorBoundary>
+            </ToastProvider>
+          </CallProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

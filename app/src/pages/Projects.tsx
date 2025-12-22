@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import {
   subscribeToProjects,
   createProject,
@@ -15,6 +16,7 @@ import type { Project, User } from '../types';
 
 export default function Projects() {
   const { currentUser, userProfile } = useAuth();
+  const { isAdmin } = useAdmin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,10 +26,11 @@ export default function Projects() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
+    // Admin can see hidden projects, regular users cannot
     const unsubProjects = subscribeToProjects((data) => {
       setProjects(data);
       setLoading(false);
-    });
+    }, { includeHidden: isAdmin });
 
     const unsubUsers = subscribeToAllUsers((data) => {
       setUsers(data);
@@ -37,7 +40,7 @@ export default function Projects() {
       unsubProjects();
       unsubUsers();
     };
-  }, []);
+  }, [isAdmin]);
 
   async function handleCreateProject(data: {
     name: string;
