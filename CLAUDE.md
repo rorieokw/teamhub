@@ -41,6 +41,13 @@ TeamHub/
 └── CLAUDE.md               # This file
 ```
 
+## Git Branching Rules (IMPORTANT)
+
+- **ALWAYS push to `develop` branch** - This is the testing/staging branch for new features
+- **NEVER push to `master` branch** unless explicitly instructed - This is the LIVE production server
+- When asked to "push to GitHub" or "commit and push", always use `develop` branch
+- Only push to `master` when the user specifically says "push to master" or "deploy to production"
+
 ## Development Guidelines
 
 1. Keep code simple and readable

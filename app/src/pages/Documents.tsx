@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import { subscribeToProjects } from '../services/projects';
 import {
   subscribeToDocuments,
@@ -14,6 +15,7 @@ import type { Project, Document, User } from '../types';
 
 export default function Documents() {
   const { currentUser } = useAuth();
+  const { isAdmin } = useAdmin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [uploaders, setUploaders] = useState<Map<string, User>>(new Map());
@@ -23,17 +25,17 @@ export default function Documents() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
 
-  // Subscribe to user's projects
+  // Subscribe to user's projects (admins see all, non-admins see only their projects)
   useEffect(() => {
     const unsubscribe = subscribeToProjects((data) => {
-      const userProjects = currentUser
-        ? data.filter((p) => p.members.includes(currentUser.uid))
-        : [];
-      setProjects(userProjects);
+      setProjects(data);
+    }, {
+      userId: currentUser?.uid,
+      isAdmin,
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser?.uid, isAdmin]);
 
   // Subscribe to documents based on selected project
   useEffect(() => {

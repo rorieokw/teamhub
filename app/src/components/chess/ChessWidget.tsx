@@ -8,11 +8,12 @@ import {
   acceptChessChallenge,
   declineChessChallenge,
 } from '../../services/chess';
+import { notifyChessChallenge } from '../../services/notifications';
 import ChessGameModal from './ChessGameModal';
 import type { ChessGame, User } from '../../types';
 
 export default function ChessWidget() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [games, setGames] = useState<ChessGame[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [showChallenge, setShowChallenge] = useState(false);
@@ -44,9 +45,16 @@ export default function ChessWidget() {
   }, [currentUser]);
 
   const handleChallenge = async (opponentId: string) => {
-    if (!currentUser) return;
+    if (!currentUser || !userProfile) return;
     try {
-      await createChessChallenge(currentUser.uid, opponentId);
+      const gameId = await createChessChallenge(currentUser.uid, opponentId);
+      // Send notification to opponent
+      await notifyChessChallenge(
+        opponentId,
+        userProfile.displayName,
+        currentUser.uid,
+        gameId
+      );
       setShowChallenge(false);
     } catch (error) {
       console.error('Failed to create challenge:', error);

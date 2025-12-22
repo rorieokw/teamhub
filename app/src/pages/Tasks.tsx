@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Timestamp } from 'firebase/firestore';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import { subscribeToProjects } from '../services/projects';
 import {
   subscribeToAllAccessibleTasks,
@@ -30,6 +31,7 @@ const columnConfig: Record<ColumnId, { title: string; color: string; bgColor: st
 
 export default function Tasks() {
   const { currentUser, userProfile } = useAuth();
+  const { isAdmin } = useAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -62,18 +64,17 @@ export default function Tasks() {
     setSearchParams(searchParams);
   };
 
-  // Subscribe to projects user is a member of
+  // Subscribe to projects (admins see all, non-admins see only their projects)
   useEffect(() => {
     const unsubscribe = subscribeToProjects((data) => {
-      // Filter to only projects user is a member of
-      const userProjects = data.filter(
-        (p) => currentUser && p.members.includes(currentUser.uid)
-      );
-      setProjects(userProjects);
+      setProjects(data);
+    }, {
+      userId: currentUser?.uid,
+      isAdmin,
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser?.uid, isAdmin]);
 
   // Subscribe to tasks from user's projects
   useEffect(() => {

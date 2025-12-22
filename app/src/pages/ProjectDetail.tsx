@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import { updateProject, deleteProject, joinProject, leaveProject } from '../services/projects';
 import {
   subscribeToMilestones,
@@ -38,6 +39,7 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser, userProfile } = useAuth();
+  const { isAdmin } = useAdmin();
 
   const [project, setProject] = useState<Project | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
@@ -341,6 +343,25 @@ export default function ProjectDetail() {
 
   const isOwner = project.createdBy === currentUser?.uid;
   const isMember = currentUser ? project.members?.includes(currentUser.uid) : false;
+  const hasAccess = isAdmin || isOwner || isMember;
+
+  // Non-admins can only view projects they are members of or created
+  if (!hasAccess) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+          <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-white mb-2">Access Denied</h2>
+        <p className="text-gray-400 mb-4">You don't have permission to view this project.</p>
+        <Link to="/projects" className="text-purple-400 hover:text-purple-300 inline-block">
+          Back to Projects
+        </Link>
+      </div>
+    );
+  }
   const completedCount = milestones.filter((m) => m.completed).length;
 
   const handleJoinProject = async () => {

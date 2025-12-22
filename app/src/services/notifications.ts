@@ -232,3 +232,38 @@ export async function notifyAdminNewUserSignup(
     data: { newUserId, newUserEmail },
   });
 }
+
+// Helper to create chess challenge notification
+export async function notifyChessChallenge(
+  opponentId: string,
+  challengerName: string,
+  challengerId: string,
+  gameId: string
+): Promise<void> {
+  await createNotification({
+    userId: opponentId,
+    type: 'chess-challenge',
+    title: 'Chess Challenge!',
+    message: `${challengerName} challenged you to a game of chess`,
+    data: { gameId, challengerId },
+  });
+}
+
+// Helper to create coin flip challenge notification
+export async function notifyCoinFlipChallenge(
+  opponentId: string,
+  challengerName: string,
+  challengerId: string,
+  flipId: string,
+  reason?: string
+): Promise<void> {
+  await createNotification({
+    userId: opponentId,
+    type: 'coinflip-challenge',
+    title: 'Coin Flip Challenge!',
+    message: reason
+      ? `${challengerName} challenged you to a coin flip: "${reason}"`
+      : `${challengerName} challenged you to a coin flip`,
+    data: { flipId, challengerId, reason },
+  });
+}

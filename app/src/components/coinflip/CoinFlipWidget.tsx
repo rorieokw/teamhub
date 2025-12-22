@@ -8,6 +8,7 @@ import {
   declineCoinFlip,
   completeCoinFlip,
 } from '../../services/coinflip';
+import { notifyCoinFlipChallenge } from '../../services/notifications';
 import type { CoinFlip, User } from '../../types';
 
 // Coin SVG icon for consistent rendering
@@ -96,7 +97,7 @@ function PixelCoin({ side, isFlipping, size = 64 }: { side: 'heads' | 'tails' | 
 }
 
 export default function CoinFlipWidget() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [flips, setFlips] = useState<CoinFlip[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [showChallenge, setShowChallenge] = useState(false);
@@ -131,12 +132,20 @@ export default function CoinFlipWidget() {
   }, [currentUser]);
 
   const handleChallenge = async (opponentId: string) => {
-    if (!currentUser) return;
+    if (!currentUser || !userProfile) return;
     try {
-      await createCoinFlipChallenge(
+      const flipId = await createCoinFlipChallenge(
         currentUser.uid,
         opponentId,
         selectedCall,
+        reason.trim() || undefined
+      );
+      // Send notification to opponent
+      await notifyCoinFlipChallenge(
+        opponentId,
+        userProfile.displayName,
+        currentUser.uid,
+        flipId,
         reason.trim() || undefined
       );
       setShowChallenge(false);

@@ -15,6 +15,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import { useDashboardLayout } from '../hooks/useDashboardLayout';
 import { subscribeToProjects } from '../services/projects';
 import { subscribeToUserTasks } from '../services/tasks';
@@ -41,6 +42,7 @@ import type { Project, Task, WidgetId } from '../types';
 
 export default function Dashboard() {
   const { currentUser, userProfile } = useAuth();
+  const { isAdmin } = useAdmin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,15 +71,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     const unsubscribe = subscribeToProjects((data) => {
-      const userProjects = currentUser
-        ? data.filter((p) => p.members.includes(currentUser.uid))
-        : [];
-      setProjects(userProjects);
+      setProjects(data);
       setLoading(false);
+    }, {
+      userId: currentUser?.uid,
+      isAdmin,
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser?.uid, isAdmin]);
 
   useEffect(() => {
     if (!currentUser) return;

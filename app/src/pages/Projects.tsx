@@ -26,11 +26,15 @@ export default function Projects() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    // Admin can see hidden projects, regular users cannot
+    // Admin can see all projects (including hidden), non-admins only see projects they're in
     const unsubProjects = subscribeToProjects((data) => {
       setProjects(data);
       setLoading(false);
-    }, { includeHidden: isAdmin });
+    }, {
+      includeHidden: isAdmin,
+      userId: currentUser?.uid,
+      isAdmin,
+    });
 
     const unsubUsers = subscribeToAllUsers((data) => {
       setUsers(data);
@@ -40,7 +44,7 @@ export default function Projects() {
       unsubProjects();
       unsubUsers();
     };
-  }, [isAdmin]);
+  }, [isAdmin, currentUser?.uid]);
 
   async function handleCreateProject(data: {
     name: string;

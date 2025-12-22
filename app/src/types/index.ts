@@ -92,7 +92,7 @@ export interface Message {
 export interface Notification {
   id: string;
   userId: string;
-  type: 'task-assigned' | 'project-update' | 'mention' | 'new-user-signup' | 'direct-message' | 'reaction' | 'poll-closed' | 'comment';
+  type: 'task-assigned' | 'project-update' | 'mention' | 'new-user-signup' | 'direct-message' | 'reaction' | 'poll-closed' | 'comment' | 'chess-challenge' | 'coinflip-challenge';
   title: string;
   message: string;
   read: boolean;

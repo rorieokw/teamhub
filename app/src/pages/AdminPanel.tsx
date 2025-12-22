@@ -935,16 +935,25 @@ export default function AdminPanel() {
                         <span className="text-sm text-gray-400">{project.members?.length || 1}</span>
                       </td>
                       <td className="p-3">
-                        <button
-                          onClick={() => handleToggleProjectVisibility(project)}
-                          className={`px-2 py-1 text-xs rounded-lg transition-colors ${
-                            project.hidden
-                              ? 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
-                              : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                          }`}
-                        >
-                          {project.hidden ? 'Hidden' : 'Visible'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleProjectVisibility(project)}
+                            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+                              !project.hidden
+                                ? 'bg-purple-600'
+                                : 'bg-gray-600'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                                !project.hidden ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          <span className={`text-xs ${!project.hidden ? 'text-purple-400' : 'text-gray-500'}`}>
+                            {project.hidden ? 'Hidden' : 'Visible'}
+                          </span>
+                        </div>
                       </td>
                       <td className="p-3">
                         <span className="text-xs text-gray-500">{formatDate(project.createdAt)}</span>

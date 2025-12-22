@@ -18,7 +18,11 @@ const COLLECTION = 'projects';
 
 export function subscribeToProjects(
   callback: (projects: Project[]) => void,
-  options?: { includeHidden?: boolean }
+  options?: {
+    includeHidden?: boolean;
+    userId?: string;
+    isAdmin?: boolean;
+  }
 ): () => void {
   const q = query(
     collection(db, COLLECTION),
@@ -34,6 +38,14 @@ export function subscribeToProjects(
     // Filter out hidden projects unless includeHidden is true (admin view)
     if (!options?.includeHidden) {
       projects = projects.filter(p => !p.hidden);
+    }
+
+    // Non-admins can only see projects they created or are members of
+    if (!options?.isAdmin && options?.userId) {
+      projects = projects.filter(p =>
+        p.createdBy === options.userId ||
+        p.members?.includes(options.userId)
+      );
     }
 
     callback(projects);

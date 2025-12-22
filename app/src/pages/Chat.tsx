@@ -81,15 +81,19 @@ export default function Chat() {
     };
   }, [allMembers]);
 
-  // Subscribe to projects - show all projects for team chat (admin sees hidden projects too)
+  // Subscribe to projects - non-admins only see projects they're in
   useEffect(() => {
     const unsubscribe = subscribeToProjects((data) => {
       setProjects(data);
       setLoading(false);
-    }, { includeHidden: isAdmin });
+    }, {
+      includeHidden: isAdmin,
+      userId: currentUser?.uid,
+      isAdmin,
+    });
 
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, [isAdmin, currentUser?.uid]);
 
   // Build channels list from projects
   useEffect(() => {

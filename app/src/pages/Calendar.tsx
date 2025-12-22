@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAdmin } from '../hooks/useAdmin';
 import { subscribeToMonthEvents, getEventsForDay, createEvent } from '../services/events';
 import { subscribeToProjects } from '../services/projects';
 import { subscribeToAllAccessibleTasks } from '../services/tasks';
@@ -15,6 +16,7 @@ const MONTHS = [
 
 export default function Calendar() {
   const { currentUser, userProfile } = useAuth();
+  const { isAdmin } = useAdmin();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<TeamEvent[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -45,16 +47,19 @@ export default function Calendar() {
     };
   }, [year, month]);
 
-  // Subscribe to projects
+  // Subscribe to projects (admins see all, non-admins see only their projects)
   useEffect(() => {
     if (!currentUser) return;
 
     const unsubscribe = subscribeToProjects((data) => {
-      setProjects(data.filter((p) => p.members.includes(currentUser.uid)));
+      setProjects(data);
+    }, {
+      userId: currentUser.uid,
+      isAdmin,
     });
 
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   // Subscribe to tasks with due dates
   useEffect(() => {

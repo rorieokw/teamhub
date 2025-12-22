@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAdmin } from '../../hooks/useAdmin';
 import { subscribeToProjects } from '../../services/projects';
 import type { Project } from '../../types';
 
@@ -11,6 +12,7 @@ interface StatusData {
 
 export default function ProjectProgressChart() {
   const { currentUser } = useAuth();
+  const { isAdmin } = useAdmin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,12 +20,15 @@ export default function ProjectProgressChart() {
     if (!currentUser) return;
 
     const unsubscribe = subscribeToProjects((data) => {
-      setProjects(data.filter((p) => p.members.includes(currentUser.uid)));
+      setProjects(data);
       setLoading(false);
+    }, {
+      userId: currentUser.uid,
+      isAdmin,
     });
 
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   if (loading) {
     return (

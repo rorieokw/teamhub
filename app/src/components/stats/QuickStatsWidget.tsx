@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAdmin } from '../../hooks/useAdmin';
 import { subscribeToProjects } from '../../services/projects';
 import { subscribeToAllAccessibleTasks } from '../../services/tasks';
 import type { Project, Task } from '../../types';
 
 export default function QuickStatsWidget() {
   const { currentUser } = useAuth();
+  const { isAdmin } = useAdmin();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,12 +17,15 @@ export default function QuickStatsWidget() {
     if (!currentUser) return;
 
     const unsubscribe = subscribeToProjects((data) => {
-      setProjects(data.filter((p) => p.members.includes(currentUser.uid)));
+      setProjects(data);
       setLoading(false);
+    }, {
+      userId: currentUser.uid,
+      isAdmin,
     });
 
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   useEffect(() => {
     if (projects.length === 0) return;

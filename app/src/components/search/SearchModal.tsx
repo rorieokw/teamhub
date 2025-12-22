@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { globalSearch, type SearchResult } from '../../services/search';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAdmin } from '../../hooks/useAdmin';
 import { subscribeToProjects } from '../../services/projects';
 import { getGeneralChannelId, getProjectChannelId } from '../../services/messages';
 import type { Project } from '../../types';
@@ -31,6 +32,7 @@ const resultIcons: Record<SearchResult['type'], React.ReactNode> = {
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const { currentUser } = useAuth();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -43,12 +45,14 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     if (!currentUser) return;
 
     const unsubscribe = subscribeToProjects((data) => {
-      const userProjects = data.filter((p) => p.members.includes(currentUser.uid));
-      setProjects(userProjects);
+      setProjects(data);
+    }, {
+      userId: currentUser.uid,
+      isAdmin,
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   // Search when query changes
   useEffect(() => {
