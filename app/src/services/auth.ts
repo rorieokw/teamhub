@@ -7,7 +7,9 @@ import {
 import type { User as FirebaseUser } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import type { User } from '../types';
+import type { User, ApprovalStatus } from '../types';
+import { getAppSettings } from './settings';
+import { isAdminEmail } from './admin';
 
 export async function signUp(
   email: string,
@@ -18,10 +20,23 @@ export async function signUp(
 
   await updateProfile(user, { displayName });
 
+  // Check if whitelist mode is enabled
+  const settings = await getAppSettings();
+  const isAdmin = isAdminEmail(email);
+
+  // Determine approval status
+  let approvalStatus: ApprovalStatus | undefined;
+  if (settings.whitelistEnabled && !isAdmin) {
+    approvalStatus = 'pending';
+  } else {
+    approvalStatus = 'approved';
+  }
+
   await setDoc(doc(db, 'users', user.uid), {
     id: user.uid,
     email: user.email,
     displayName,
+    approvalStatus,
     createdAt: serverTimestamp(),
   });
 

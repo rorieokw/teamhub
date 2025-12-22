@@ -7,13 +7,14 @@ import {
   deleteProject,
 } from '../services/projects';
 import { subscribeToAllUsers } from '../services/users';
+import { notifyProjectCompleted } from '../services/notifications';
 import ProjectModal from '../components/projects/ProjectModal';
 import ProjectCard from '../components/projects/ProjectCard';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import type { Project, User } from '../types';
 
 export default function Projects() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +45,7 @@ export default function Projects() {
     status: Project['status'];
     progress: number;
     deadline?: Date;
+    githubUrl?: string;
   }) {
     if (!currentUser) return;
 
@@ -60,10 +62,28 @@ export default function Projects() {
     status: Project['status'];
     progress: number;
     deadline?: Date;
+    githubUrl?: string;
   }) {
-    if (!editingProject) return;
+    if (!editingProject || !currentUser || !userProfile) return;
+
+    const wasCompleted = editingProject.status !== 'completed' && data.status === 'completed';
 
     await updateProject(editingProject.id, data);
+
+    // Notify all members if project was just completed
+    if (wasCompleted && editingProject.members.length > 0) {
+      // Notify all members except the person who marked it complete
+      const otherMembers = editingProject.members.filter(m => m !== currentUser.uid);
+      if (otherMembers.length > 0) {
+        await notifyProjectCompleted(
+          otherMembers,
+          editingProject.name,
+          userProfile.displayName,
+          editingProject.id
+        );
+      }
+    }
+
     setEditingProject(null);
   }
 

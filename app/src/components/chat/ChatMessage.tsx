@@ -16,6 +16,7 @@ interface ChatMessageProps {
   showAvatar?: boolean;
   members?: User[];
   senderStats?: UserStats;
+  onStartDM?: (userId: string) => void;
 }
 
 export default function ChatMessage({
@@ -26,6 +27,7 @@ export default function ChatMessage({
   showAvatar = true,
   members = [],
   senderStats,
+  onStartDM,
 }: ChatMessageProps) {
   const { isAdmin } = useAdmin();
   const [showReactions, setShowReactions] = useState(false);
@@ -374,6 +376,7 @@ export default function ChatMessage({
           userId={sender.id}
           isOpen={showProfile}
           onClose={() => setShowProfile(false)}
+          onStartDM={onStartDM}
         />
       )}
     </div>

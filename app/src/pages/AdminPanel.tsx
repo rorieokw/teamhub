@@ -24,12 +24,17 @@ import {
   type SystemAnnouncement,
   type ActivityLog,
 } from '../services/admin';
+import { createTask } from '../services/tasks';
+import { notifyTaskAssigned } from '../services/notifications';
 import { closePoll, reopenPoll } from '../services/polls';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { User, Poll, Message, Project, Task } from '../types';
+import { subscribeToAppSettings, updateAppSettings } from '../services/settings';
+import { updateUserApprovalStatus, subscribeToPendingUsers } from '../services/users';
+import type { AppSettings } from '../types';
 
-type TabType = 'overview' | 'messages' | 'users' | 'projects' | 'tasks' | 'polls' | 'announcements' | 'logs';
+type TabType = 'overview' | 'messages' | 'users' | 'projects' | 'tasks' | 'polls' | 'announcements' | 'logs' | 'security';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -66,6 +71,20 @@ export default function AdminPanel() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDesc, setEditProjectDesc] = useState('');
+
+  // Task creation form
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskProject, setNewTaskProject] = useState('');
+  const [newTaskAssignee, setNewTaskAssignee] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [newTaskStatus, setNewTaskStatus] = useState<'todo' | 'in-progress' | 'done'>('todo');
+
+  // Security / Whitelist
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [togglingWhitelist, setTogglingWhitelist] = useState(false);
 
   // Redirect if not admin
   useEffect(() => {
@@ -124,11 +143,19 @@ export default function AdminPanel() {
     // Subscribe to activity logs
     const unsubLogs = subscribeToAdminLogs(setActivityLogs);
 
+    // Subscribe to app settings
+    const unsubSettings = subscribeToAppSettings(setAppSettings);
+
+    // Subscribe to pending users
+    const unsubPendingUsers = subscribeToPendingUsers(setPendingUsers);
+
     return () => {
       unsubMessages();
       unsubPolls();
       unsubAnnouncements();
       unsubLogs();
+      unsubSettings();
+      unsubPendingUsers();
     };
   }, [isAdmin]);
 
@@ -238,6 +265,53 @@ export default function AdminPanel() {
     }
   };
 
+  const handleCreateTask = async () => {
+    if (!newTaskTitle.trim() || !newTaskProject || !newTaskAssignee || !currentUser) return;
+    try {
+      const taskId = await createTask({
+        projectId: newTaskProject,
+        title: newTaskTitle.trim(),
+        description: newTaskDesc.trim() || undefined,
+        status: newTaskStatus,
+        priority: newTaskPriority,
+        assignedTo: newTaskAssignee,
+        createdBy: currentUser.uid,
+      });
+
+      // Refresh tasks list
+      const updatedTasks = await getAllTasks();
+      setTasks(updatedTasks);
+
+      // Send notification to assignee if not self
+      if (newTaskAssignee !== currentUser.uid && userProfile) {
+        const project = projects.find((p) => p.id === newTaskProject);
+        await notifyTaskAssigned(
+          newTaskAssignee,
+          newTaskTitle.trim(),
+          project?.name || 'Unknown Project',
+          userProfile.displayName,
+          taskId,
+          newTaskProject
+        );
+      }
+
+      if (userProfile) {
+        await logAdminAction('Created task', currentUser.uid, userProfile.displayName, taskId, newTaskTitle);
+      }
+
+      // Reset form
+      setShowTaskForm(false);
+      setNewTaskTitle('');
+      setNewTaskDesc('');
+      setNewTaskProject('');
+      setNewTaskAssignee('');
+      setNewTaskPriority('medium');
+      setNewTaskStatus('todo');
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
+  };
+
   const handleUpdateUserTitle = async () => {
     if (!editingUser) return;
     try {
@@ -300,6 +374,48 @@ export default function AdminPanel() {
       }
     } catch (error) {
       console.error('Failed to delete announcement:', error);
+    }
+  };
+
+  // Whitelist / Security handlers
+  const handleToggleWhitelist = async () => {
+    if (!currentUser) return;
+    setTogglingWhitelist(true);
+    try {
+      const newValue = !(appSettings?.whitelistEnabled ?? false);
+      await updateAppSettings({ whitelistEnabled: newValue }, currentUser.uid);
+      if (userProfile) {
+        await logAdminAction(
+          newValue ? 'Enabled whitelist mode' : 'Disabled whitelist mode',
+          currentUser.uid,
+          userProfile.displayName
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle whitelist:', error);
+    } finally {
+      setTogglingWhitelist(false);
+    }
+  };
+
+  const handleApproveUser = async (user: User) => {
+    if (!currentUser || !userProfile) return;
+    try {
+      await updateUserApprovalStatus(user.id, 'approved');
+      await logAdminAction('Approved user', currentUser.uid, userProfile.displayName, user.id, user.displayName);
+    } catch (error) {
+      console.error('Failed to approve user:', error);
+    }
+  };
+
+  const handleRejectUser = async (user: User) => {
+    if (!currentUser || !userProfile) return;
+    if (!confirm(`Are you sure you want to reject ${user.displayName}? They won't be able to access the app.`)) return;
+    try {
+      await updateUserApprovalStatus(user.id, 'rejected');
+      await logAdminAction('Rejected user', currentUser.uid, userProfile.displayName, user.id, user.displayName);
+    } catch (error) {
+      console.error('Failed to reject user:', error);
     }
   };
 
@@ -372,8 +488,9 @@ export default function AdminPanel() {
     );
   }
 
-  const tabs: { id: TabType; label: string; icon: ReactNode }[] = [
+  const tabs: { id: TabType; label: string; icon: ReactNode; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg> },
+    { id: 'security', label: 'Security', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>, badge: pendingUsers.length > 0 ? pendingUsers.length : undefined },
     { id: 'users', label: 'Users', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg> },
     { id: 'messages', label: 'Messages', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> },
     { id: 'projects', label: 'Projects', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg> },
@@ -418,6 +535,11 @@ export default function AdminPanel() {
           >
             {tab.icon}
             {tab.label}
+            {tab.badge && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">
+                {tab.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -770,11 +892,132 @@ export default function AdminPanel() {
 
       {/* Tasks Tab */}
       {activeTab === 'tasks' && (
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-white/10">
-            <h3 className="font-semibold text-white">Tasks</h3>
-            <p className="text-xs text-gray-400">{filteredTasks.length} tasks</p>
-          </div>
+        <div className="space-y-4">
+          {/* Create Task Button */}
+          {!showTaskForm && (
+            <button
+              onClick={() => setShowTaskForm(true)}
+              className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:shadow-lg hover:shadow-orange-500/25 transition-all text-sm flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Task
+            </button>
+          )}
+
+          {/* Task Creation Form */}
+          {showTaskForm && (
+            <div className="glass-card rounded-xl p-4">
+              <h3 className="font-semibold text-white mb-4">New Task</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Task Title *</label>
+                  <input
+                    type="text"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="Enter task title"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Description</label>
+                  <textarea
+                    value={newTaskDesc}
+                    onChange={(e) => setNewTaskDesc(e.target.value)}
+                    placeholder="Task description (optional)"
+                    rows={2}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Project *</label>
+                    <select
+                      value={newTaskProject}
+                      onChange={(e) => setNewTaskProject(e.target.value)}
+                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500/50"
+                    >
+                      <option value="" className="bg-gray-900">Select project</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-gray-900">{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Assign To *</label>
+                    <select
+                      value={newTaskAssignee}
+                      onChange={(e) => setNewTaskAssignee(e.target.value)}
+                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500/50"
+                    >
+                      <option value="" className="bg-gray-900">Select user</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id} className="bg-gray-900">{u.displayName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Priority</label>
+                    <select
+                      value={newTaskPriority}
+                      onChange={(e) => setNewTaskPriority(e.target.value as 'low' | 'medium' | 'high' | 'urgent')}
+                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500/50"
+                    >
+                      <option value="low" className="bg-gray-900">Low</option>
+                      <option value="medium" className="bg-gray-900">Medium</option>
+                      <option value="high" className="bg-gray-900">High</option>
+                      <option value="urgent" className="bg-gray-900">Urgent</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Status</label>
+                    <select
+                      value={newTaskStatus}
+                      onChange={(e) => setNewTaskStatus(e.target.value as 'todo' | 'in-progress' | 'done')}
+                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-orange-500/50"
+                    >
+                      <option value="todo" className="bg-gray-900">To Do</option>
+                      <option value="in-progress" className="bg-gray-900">In Progress</option>
+                      <option value="done" className="bg-gray-900">Done</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setShowTaskForm(false);
+                      setNewTaskTitle('');
+                      setNewTaskDesc('');
+                      setNewTaskProject('');
+                      setNewTaskAssignee('');
+                      setNewTaskPriority('medium');
+                      setNewTaskStatus('todo');
+                    }}
+                    className="px-4 py-2 text-gray-400 hover:text-white transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateTask}
+                    disabled={!newTaskTitle.trim() || !newTaskProject || !newTaskAssignee}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                  >
+                    Create Task
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-white/10">
+              <h3 className="font-semibold text-white">Tasks</h3>
+              <p className="text-xs text-gray-400">{filteredTasks.length} tasks</p>
+            </div>
           <div className="max-h-[500px] overflow-y-auto">
             {filteredTasks.length === 0 ? (
               <div className="p-8 text-center text-gray-400">No tasks found</div>
@@ -831,6 +1074,7 @@ export default function AdminPanel() {
                 </tbody>
               </table>
             )}
+          </div>
           </div>
         </div>
       )}
@@ -1080,6 +1324,145 @@ export default function AdminPanel() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Security Tab */}
+      {activeTab === 'security' && (
+        <div className="space-y-6">
+          {/* Whitelist Toggle */}
+          <div className="glass-card rounded-xl p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Whitelist Mode</h3>
+                  <p className="text-gray-400 text-sm mt-1">
+                    When enabled, new users must be approved by an admin before they can access the application.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      appSettings?.whitelistEnabled
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        appSettings?.whitelistEnabled ? 'bg-green-400' : 'bg-gray-400'
+                      }`}></span>
+                      {appSettings?.whitelistEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={handleToggleWhitelist}
+                disabled={togglingWhitelist}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  appSettings?.whitelistEnabled ? 'bg-green-500' : 'bg-gray-600'
+                } ${togglingWhitelist ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    appSettings?.whitelistEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Pending Users */}
+          <div className="glass-card rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-white">Pending Approvals</h3>
+                  <p className="text-xs text-gray-400">Users waiting for access approval</p>
+                </div>
+                {pendingUsers.length > 0 && (
+                  <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium">
+                    {pendingUsers.length} pending
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto">
+              {pendingUsers.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400">No pending approvals</p>
+                  <p className="text-gray-500 text-sm mt-1">All users have been reviewed</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {pendingUsers.map((user) => (
+                    <div key={user.id} className="p-4 hover:bg-white/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium overflow-hidden">
+                            {user.avatarUrl?.startsWith('http') ? (
+                              <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                            ) : user.avatarUrl ? (
+                              <span className="text-lg">{user.avatarUrl}</span>
+                            ) : (
+                              user.displayName?.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">{user.displayName}</p>
+                            <p className="text-gray-400 text-sm">{user.email}</p>
+                            <p className="text-gray-500 text-xs mt-0.5">
+                              Signed up {formatRelativeTime(user.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleApproveUser(user)}
+                            className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectUser(user)}
+                            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm font-medium"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="glass-card rounded-xl p-4 border border-blue-500/20 bg-blue-500/5">
+            <div className="flex gap-3">
+              <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="text-sm">
+                <p className="text-blue-400 font-medium">How whitelist mode works</p>
+                <ul className="text-gray-400 mt-2 space-y-1">
+                  <li>- New users who sign up will see a "Pending Approval" screen</li>
+                  <li>- You'll see them in the Pending Approvals list above</li>
+                  <li>- Approved users get full access to the application</li>
+                  <li>- Rejected users see an "Access Denied" screen</li>
+                  <li>- Admins always have access regardless of whitelist status</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       )}

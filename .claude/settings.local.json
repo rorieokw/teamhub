@@ -20,7 +20,8 @@
       "Bash(git push:*)",
       "Bash(pushd:*)",
       "Bash(firebase login:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(popd:*)"
     ]
   }
 }

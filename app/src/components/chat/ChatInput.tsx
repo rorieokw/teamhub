@@ -5,6 +5,7 @@ import PollCreator from '../polls/PollCreator';
 import { parsePollCommand, createPoll } from '../../services/polls';
 import { useAuth } from '../../contexts/AuthContext';
 import { uploadChatImages, validateImageFile } from '../../services/storage';
+import type { User } from '../../types';
 
 interface ChatInputProps {
   onSend: (content: string, images?: string[]) => Promise<void>;
@@ -13,6 +14,7 @@ interface ChatInputProps {
   projectId?: string;
   placeholder?: string;
   disabled?: boolean;
+  users?: User[]; // For @mention autocomplete
 }
 
 interface ImagePreview {
@@ -27,6 +29,7 @@ export default function ChatInput({
   projectId,
   placeholder = 'Type a message...',
   disabled = false,
+  users = [],
 }: ChatInputProps) {
   const { currentUser, userProfile } = useAuth();
   const [content, setContent] = useState('');
@@ -41,10 +44,81 @@ export default function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
+  // @mention autocomplete state
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStartIndex, setMentionStartIndex] = useState<number>(0);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const mentionDropdownRef = useRef<HTMLDivElement>(null);
+
   // Detect /poll command
   useEffect(() => {
     setShowPollHint(content.trim().startsWith('/poll'));
   }, [content]);
+
+  // Filter users for @mention autocomplete
+  const filteredMentionUsers = mentionQuery !== null
+    ? users.filter((user) =>
+        user.displayName.toLowerCase().includes(mentionQuery.toLowerCase())
+      ).slice(0, 5)
+    : [];
+
+  // Reset selected index when filtered list changes
+  useEffect(() => {
+    setSelectedMentionIndex(0);
+  }, [mentionQuery]);
+
+  // Detect @mention in content
+  function handleContentChange(newContent: string) {
+    setContent(newContent);
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = newContent.substring(0, cursorPos);
+
+    // Find the last @ before cursor
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      // Check if @ is at start or preceded by whitespace
+      const charBefore = lastAtIndex > 0 ? textBeforeCursor[lastAtIndex - 1] : ' ';
+      if (charBefore === ' ' || charBefore === '\n' || lastAtIndex === 0) {
+        const query = textBeforeCursor.substring(lastAtIndex + 1);
+        // Only show dropdown if query doesn't contain spaces (still typing username)
+        if (!query.includes(' ')) {
+          setMentionQuery(query);
+          setMentionStartIndex(lastAtIndex);
+          return;
+        }
+      }
+    }
+
+    // No valid mention detected
+    setMentionQuery(null);
+  }
+
+  // Insert mention into content
+  function insertMention(user: User) {
+    const beforeMention = content.substring(0, mentionStartIndex);
+    const afterMention = content.substring(
+      mentionStartIndex + 1 + (mentionQuery?.length || 0)
+    );
+    const mentionText = `@${user.displayName.replace(/\s+/g, '')} `;
+    const newContent = beforeMention + mentionText + afterMention;
+
+    setContent(newContent);
+    setMentionQuery(null);
+
+    // Focus and set cursor after mention
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newCursorPos = beforeMention.length + mentionText.length;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  }
 
   // Auto-resize textarea
   useEffect(() => {
@@ -239,6 +313,34 @@ export default function ChatInput({
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // Handle mention dropdown navigation
+    if (mentionQuery !== null && filteredMentionUsers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) =>
+          prev < filteredMentionUsers.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredMentionUsers.length - 1
+        );
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(filteredMentionUsers[selectedMentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
+
     // Send on Enter, new line on Shift+Enter
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -380,13 +482,62 @@ export default function ChatInput({
           <textarea
             ref={textareaRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => handleContentChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={imagePreviews.length > 0 ? 'Add a caption (optional)...' : placeholder}
             disabled={disabled || sending}
             rows={1}
             className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent resize-none disabled:opacity-50 transition-all"
           />
+
+          {/* @mention autocomplete dropdown */}
+          {mentionQuery !== null && filteredMentionUsers.length > 0 && (
+            <div
+              ref={mentionDropdownRef}
+              className="absolute bottom-full left-0 mb-2 w-64 bg-gray-900 border border-white/20 rounded-xl shadow-xl overflow-hidden z-50 animate-fade-in"
+            >
+              <div className="p-2 border-b border-white/10">
+                <p className="text-xs text-gray-400">Mention someone</p>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {filteredMentionUsers.map((user, index) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => insertMention(user)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                      index === selectedMentionIndex
+                        ? 'bg-purple-500/20 text-white'
+                        : 'text-gray-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium text-white overflow-hidden"
+                      style={{
+                        background: user.nameColor
+                          ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
+                          : 'linear-gradient(135deg, #8b5cf6, #d946ef)',
+                      }}
+                    >
+                      {user.avatarUrl?.startsWith('http') ? (
+                        <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                      ) : user.avatarUrl ? (
+                        <span>{user.avatarUrl}</span>
+                      ) : (
+                        user.displayName.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{user.displayName}</p>
+                      {user.title && (
+                        <p className="text-xs text-gray-500 truncate">{user.title}</p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Emoji button */}

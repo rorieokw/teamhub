@@ -9,20 +9,30 @@ import type { ReactNode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import type { User } from '../types';
+import type { User, AppSettings } from '../types';
 import { subscribeToUserProfile } from '../services/auth';
 import { setupPresenceTracking } from '../services/presence';
+import { subscribeToAppSettings } from '../services/settings';
+import { isAdminEmail } from '../services/admin';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
   userProfile: User | null;
   loading: boolean;
+  appSettings: AppSettings | null;
+  isApproved: boolean; // Whether user can access the app
+  isPendingApproval: boolean; // Whether user is waiting for approval
+  isRejected: boolean; // Whether user was rejected
 }
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   userProfile: null,
   loading: true,
+  appSettings: null,
+  isApproved: false,
+  isPendingApproval: false,
+  isRejected: false,
 });
 
 export function useAuth() {
@@ -37,8 +47,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const presenceCleanupRef = useRef<(() => void) | null>(null);
   const profileUnsubscribeRef = useRef<(() => void) | null>(null);
+  const settingsUnsubscribeRef = useRef<(() => void) | null>(null);
+
+  // Subscribe to app settings
+  useEffect(() => {
+    settingsUnsubscribeRef.current = subscribeToAppSettings(setAppSettings);
+    return () => {
+      if (settingsUnsubscribeRef.current) {
+        settingsUnsubscribeRef.current();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -82,10 +104,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, []);
 
+  // Compute approval status
+  const isAdmin = isAdminEmail(currentUser?.email);
+  const whitelistEnabled = appSettings?.whitelistEnabled ?? false;
+  const approvalStatus = userProfile?.approvalStatus;
+
+  // User is approved if:
+  // 1. They're an admin, OR
+  // 2. Whitelist is disabled, OR
+  // 3. Whitelist is enabled AND they're approved, OR
+  // 4. They have a profile but no approvalStatus (existing user grandfathered in)
+  const isExistingUser = Boolean(userProfile && !approvalStatus);
+  const isApproved = isAdmin || !whitelistEnabled || approvalStatus === 'approved' || isExistingUser;
+  const isPendingApproval = whitelistEnabled && !isAdmin && approvalStatus === 'pending';
+  const isRejected = whitelistEnabled && !isAdmin && approvalStatus === 'rejected';
+
   const value = {
     currentUser,
     userProfile,
     loading,
+    appSettings,
+    isApproved,
+    isPendingApproval,
+    isRejected,
   };
 
   return (

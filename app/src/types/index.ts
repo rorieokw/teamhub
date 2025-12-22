@@ -5,6 +5,8 @@ export interface NameHistoryEntry {
   changedAt: Timestamp;
 }
 
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface User {
   id: string;
   email: string;
@@ -15,7 +17,15 @@ export interface User {
   nameHistory?: NameHistoryEntry[];
   reputation?: number; // 0-100, starts at 100
   quickActions?: string[]; // User's customized quick action IDs
+  approvalStatus?: ApprovalStatus; // For whitelist mode
   createdAt: Timestamp;
+}
+
+// App-wide settings (admin controlled)
+export interface AppSettings {
+  whitelistEnabled: boolean;
+  updatedAt?: Timestamp;
+  updatedBy?: string;
 }
 
 export interface Project {
@@ -27,6 +37,7 @@ export interface Project {
   members: string[];
   createdBy: string;
   deadline?: Timestamp;
+  githubUrl?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -335,4 +346,99 @@ export interface TaskBlocker {
   assignedTo: string;
   assignedToName?: string;
   status: 'todo' | 'in-progress' | 'done';
+}
+
+// ============================================
+// STICKY NOTES
+// ============================================
+
+export type StickyNoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange';
+
+export interface StickyNote {
+  id: string;
+  userId: string;
+  content: string;
+  color: StickyNoteColor;
+  position: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ============================================
+// DASHBOARD LAYOUT (Widget Customization)
+// ============================================
+
+export type WidgetId =
+  | 'sticky-notes'
+  | 'unread-messages'
+  | 'due-soon'
+  | 'team-availability'
+  | 'pinned-items'
+  | 'activity-feed'
+  | 'quick-stats'
+  | 'calendar'
+  | 'polls'
+  | 'task-chart'
+  | 'project-chart'
+  | 'my-tasks'
+  | 'recent-projects'
+  | 'chess'
+  | 'coinflip';
+
+export type WidgetColumn = 'left' | 'right';
+
+export interface WidgetConfig {
+  id: WidgetId;
+  visible: boolean;
+  position: number;
+  column: WidgetColumn;
+}
+
+export interface DashboardLayout {
+  userId: string;
+  widgets: WidgetConfig[];
+  updatedAt: Timestamp;
+}
+
+// ============================================
+// CHESS GAMES
+// ============================================
+
+export type ChessGameStatus = 'pending' | 'active' | 'completed' | 'declined';
+export type ChessGameResult = 'white' | 'black' | 'draw' | null;
+
+export interface ChessGame {
+  id: string;
+  whitePlayerId: string;
+  blackPlayerId: string;
+  challengerId: string; // Who sent the challenge
+  status: ChessGameStatus;
+  fen: string; // Chess position in FEN notation
+  moves: string[]; // Array of moves in algebraic notation
+  currentTurn: 'white' | 'black';
+  result: ChessGameResult;
+  winner?: string; // Winner's user ID
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  completedAt?: Timestamp;
+}
+
+// ============================================
+// COIN FLIP (Tie Breaker)
+// ============================================
+
+export type CoinFlipStatus = 'pending' | 'flipping' | 'completed' | 'declined';
+export type CoinFlipResult = 'heads' | 'tails' | null;
+
+export interface CoinFlip {
+  id: string;
+  challengerId: string;
+  challengerCall: CoinFlipResult; // What the challenger called (heads/tails)
+  opponentId: string;
+  status: CoinFlipStatus;
+  result: CoinFlipResult;
+  winnerId?: string;
+  reason?: string; // Optional reason for the flip
+  createdAt: Timestamp;
+  completedAt?: Timestamp;
 }

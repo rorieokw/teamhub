@@ -2,15 +2,22 @@ import { useState, useEffect, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import StatusBar from '../dashboard/StatusBar';
 import KeyboardShortcutsModal from '../ui/KeyboardShortcutsModal';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { useNotificationSound } from '../../hooks/useNotificationSound';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Layout() {
+  const { currentUser } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts();
+
+  // Initialize notification sound listener
+  useNotificationSound(currentUser?.uid);
 
   // Show shortcuts on ? key
   const handleShowShortcuts = useCallback((e: KeyboardEvent) => {
@@ -49,6 +56,7 @@ export default function Layout() {
 
       <div className="flex-1 flex flex-col overflow-hidden w-full">
         <Header onMenuClick={() => setSidebarOpen(true)} />
+        <StatusBar />
         <main className="flex-1 overflow-auto p-4 md:p-6 main-content-bg">
           <Outlet />
         </main>

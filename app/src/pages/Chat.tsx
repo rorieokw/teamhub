@@ -605,6 +605,10 @@ export default function Chat() {
                       showAvatar={shouldShowAvatarForTimeline(index)}
                       members={allMembers}
                       senderStats={userRanks.get(message.senderId)}
+                      onStartDM={(userId) => {
+                        const user = allMembers.find((m) => m.id === userId);
+                        if (user) startDM(user);
+                      }}
                     />
                   );
                 } else {
@@ -632,6 +636,7 @@ export default function Chat() {
               : `Message #${activeChannel?.name || 'channel'}...`
           }
           disabled={!activeChannel}
+          users={allMembers}
         />
       </div>
     </div>

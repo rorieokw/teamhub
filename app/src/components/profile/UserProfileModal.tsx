@@ -10,9 +10,10 @@ interface UserProfileModalProps {
   userId: string;
   isOpen: boolean;
   onClose: () => void;
+  onStartDM?: (userId: string) => void;
 }
 
-export default function UserProfileModal({ userId, isOpen, onClose }: UserProfileModalProps) {
+export default function UserProfileModal({ userId, isOpen, onClose, onStartDM }: UserProfileModalProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,6 +154,22 @@ export default function UserProfileModal({ userId, isOpen, onClose }: UserProfil
                   <p className="text-xs text-gray-500">Messages</p>
                 </div>
               </div>
+            )}
+
+            {/* Action Buttons */}
+            {onStartDM && (
+              <button
+                onClick={() => {
+                  onStartDM(userId);
+                  onClose();
+                }}
+                className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-500/25"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Send Message
+              </button>
             )}
 
             {/* Member Since */}

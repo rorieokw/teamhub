@@ -12,7 +12,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { User, NameHistoryEntry } from '../types';
+import type { User, NameHistoryEntry, ApprovalStatus } from '../types';
 
 // Subscribe to all users (for showing member avatars, etc.)
 export function subscribeToAllUsers(
@@ -144,4 +144,34 @@ export function subscribeToUsers(
   return () => {
     unsubscribes.forEach((unsub) => unsub());
   };
+}
+
+// ==================== USER APPROVAL (Whitelist) ====================
+
+// Update user approval status (admin only)
+export async function updateUserApprovalStatus(
+  userId: string,
+  status: ApprovalStatus
+): Promise<void> {
+  const docRef = doc(db, 'users', userId);
+  await updateDoc(docRef, { approvalStatus: status });
+}
+
+// Subscribe to pending users (for admin panel)
+export function subscribeToPendingUsers(
+  callback: (users: User[]) => void
+): () => void {
+  const q = query(
+    collection(db, 'users'),
+    where('approvalStatus', '==', 'pending'),
+    orderBy('createdAt', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const users: User[] = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as User[];
+    callback(users);
+  });
 }

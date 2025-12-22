@@ -12,8 +12,10 @@ service cloud.firestore {
       // Anyone authenticated can read users (for member lookups)
       allow read: if request.auth != null;
 
-      // Only the user can create/update their own profile
-      allow create, update: if request.auth != null && request.auth.uid == userId;
+      // Users can create/update their own profile, admins can update any user
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null
+                    && (request.auth.uid == userId || isAdmin());
     }
 
     // Projects collection
@@ -24,10 +26,11 @@ service cloud.firestore {
       // Authenticated users can create projects
       allow create: if request.auth != null;
 
-      // Members can update, OR any authenticated user can join (add themselves to members)
+      // Members can update, OR any authenticated user can join (add themselves to members), OR admin
       allow update: if request.auth != null
                     && (request.auth.uid in resource.data.members
-                        || request.auth.uid in request.resource.data.members);
+                        || request.auth.uid in request.resource.data.members
+                        || isAdmin());
 
       // Creator or admin can delete
       allow delete: if request.auth != null
@@ -206,6 +209,99 @@ service cloud.firestore {
       // Users can only delete their own sessions
       allow delete: if request.auth != null
                     && request.auth.uid == resource.data.userId;
+    }
+
+    // System announcements (admin only)
+    match /systemAnnouncements/{announcementId} {
+      // Anyone can read announcements
+      allow read: if request.auth != null;
+
+      // Only admins can create/update/delete
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Admin activity logs (admin only)
+    match /adminLogs/{logId} {
+      // Only admins can read logs
+      allow read: if request.auth != null && isAdmin();
+
+      // Only admins can create logs
+      allow create: if request.auth != null && isAdmin();
+    }
+
+    // App settings (admin managed, everyone can read)
+    match /settings/{settingId} {
+      // Anyone authenticated can read settings (needed for whitelist check)
+      allow read: if request.auth != null;
+
+      // Only admins can create/update settings
+      allow create, update: if request.auth != null && isAdmin();
+    }
+
+    // Sticky notes (personal notes for each user)
+    match /stickyNotes/{noteId} {
+      // Users can only read their own notes
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.userId;
+
+      // Users can only create notes for themselves
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+
+      // Users can only update/delete their own notes
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.userId;
+    }
+
+    // Dashboard layouts (personal widget arrangement)
+    match /dashboardLayouts/{userId} {
+      // Users can only read their own layout
+      allow read: if request.auth != null
+                  && request.auth.uid == userId;
+
+      // Users can only create/update their own layout
+      allow create, update: if request.auth != null
+                            && request.auth.uid == userId;
+    }
+
+    // Coin flip challenges collection
+    match /coinFlips/{flipId} {
+      // Players can read their own flips
+      allow read: if request.auth != null
+                  && (request.auth.uid == resource.data.challengerId
+                      || request.auth.uid == resource.data.opponentId);
+
+      // Allow reading flips where user is a participant (for queries)
+      allow list: if request.auth != null;
+
+      // Authenticated users can create challenges
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.challengerId;
+
+      // Participants can update (for accepting/declining/completing)
+      allow update: if request.auth != null
+                    && (request.auth.uid == resource.data.challengerId
+                        || request.auth.uid == resource.data.opponentId);
+    }
+
+    // Chess games collection
+    match /chessGames/{gameId} {
+      // Players can read their own games
+      allow read: if request.auth != null
+                  && (request.auth.uid == resource.data.whitePlayerId
+                      || request.auth.uid == resource.data.blackPlayerId);
+
+      // Allow reading games where user is a player (for queries)
+      allow list: if request.auth != null;
+
+      // Authenticated users can create games (to challenge)
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.challengerId;
+
+      // Players can update their games (for moves, accepting/declining)
+      allow update: if request.auth != null
+                    && (request.auth.uid == resource.data.whitePlayerId
+                        || request.auth.uid == resource.data.blackPlayerId);
     }
   }
 }

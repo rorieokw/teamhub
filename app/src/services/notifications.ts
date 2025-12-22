@@ -130,3 +130,39 @@ export async function notifyComment(
     data: { taskId, projectId },
   });
 }
+
+// Helper to create project completion notification
+export async function notifyProjectCompleted(
+  memberIds: string[],
+  projectName: string,
+  completedByName: string,
+  projectId: string
+): Promise<void> {
+  for (const memberId of memberIds) {
+    await createNotification({
+      userId: memberId,
+      type: 'project-update',
+      title: 'Project Completed!',
+      message: `${completedByName} marked "${projectName}" as completed`,
+      data: { projectId },
+    });
+  }
+}
+
+// Helper to create task reassignment notification
+export async function notifyTaskReassigned(
+  newAssigneeId: string,
+  taskTitle: string,
+  projectName: string,
+  reassignedByName: string,
+  taskId: string,
+  projectId: string
+): Promise<void> {
+  await createNotification({
+    userId: newAssigneeId,
+    type: 'task-assigned',
+    title: 'Task Reassigned to You',
+    message: `${reassignedByName} assigned you "${taskTitle}" in ${projectName}`,
+    data: { taskId, projectId },
+  });
+}
