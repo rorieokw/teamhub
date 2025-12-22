@@ -33,11 +33,11 @@ export default function PinnedItemsWidget() {
   if (loading) {
     return (
       <div className="glass-card rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="widget-header mb-4">
           <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          <h3 className="text-sm font-medium text-white/90">Pinned Items</h3>
+          <span>Pinned</span>
         </div>
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
@@ -56,14 +56,14 @@ export default function PinnedItemsWidget() {
   return (
     <div className="glass-card rounded-xl p-4 hover-lift">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="widget-header">
           <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          <h3 className="text-sm font-medium text-white/90">Pinned Items</h3>
+          <span>Pinned</span>
         </div>
         {pinnedItems.length > 0 && (
-          <span className="text-xs text-white/40">{pinnedItems.length} pinned</span>
+          <span className="text-subtle">{pinnedItems.length} pinned</span>
         )}
       </div>
 
@@ -74,8 +74,8 @@ export default function PinnedItemsWidget() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
             </svg>
           </div>
-          <p className="text-sm text-white/50">No pinned items</p>
-          <p className="text-xs text-white/30 mt-1">
+          <p className="empty-state-title">No pinned items</p>
+          <p className="empty-state-description">
             Pin tasks, messages, or documents for quick access
           </p>
         </div>

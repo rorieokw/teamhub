@@ -80,9 +80,9 @@ export default function TeamAvailabilityWidget() {
   if (loading) {
     return (
       <div className="glass-card rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="widget-header mb-4">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <h3 className="text-sm font-medium text-white/90">Team Availability</h3>
+          <span>Team</span>
         </div>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -103,11 +103,11 @@ export default function TeamAvailabilityWidget() {
   return (
     <div className="glass-card rounded-xl p-4 hover-lift">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="widget-header">
           <div className="w-2 h-2 rounded-full bg-green-500" />
-          <h3 className="text-sm font-medium text-white/90">Team Availability</h3>
+          <span>Team</span>
         </div>
-        <span className="text-xs text-white/50">{onlineCount} online</span>
+        <span className="text-subtle">{onlineCount} online</span>
       </div>
 
       <div className="space-y-2">
@@ -175,7 +175,10 @@ export default function TeamAvailabilityWidget() {
       </div>
 
       {teamMembers.length === 0 && (
-        <p className="text-sm text-white/40 text-center py-4">No team members found</p>
+        <div className="text-center py-4">
+          <p className="empty-state-title">No team members found</p>
+          <p className="empty-state-description">Invite your team to get started</p>
+        </div>
       )}
     </div>
   );

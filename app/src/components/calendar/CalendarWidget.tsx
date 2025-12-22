@@ -133,9 +133,9 @@ export default function CalendarWidget() {
   if (loading) {
     return (
       <div className="glass-card rounded-xl p-4">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="widget-header mb-4">
           <span className="text-lg">📅</span>
-          <h3 className="text-sm font-medium text-white/90">Calendar</h3>
+          <span>Calendar</span>
         </div>
         <div className="grid grid-cols-7 gap-1">
           {[...Array(35)].map((_, i) => (
@@ -150,11 +150,9 @@ export default function CalendarWidget() {
     <div className="glass-card rounded-xl p-4 hover-lift">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+        <div className="widget-header">
           <span className="text-lg">📅</span>
-          <h3 className="text-sm font-medium text-white/90">
-            {MONTHS[month]} {year}
-          </h3>
+          <span>{MONTHS[month]} {year}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -185,7 +183,7 @@ export default function CalendarWidget() {
       {/* Day headers */}
       <div className="grid grid-cols-7 gap-1 mb-1">
         {DAYS.map((day) => (
-          <div key={day} className="text-center text-[10px] text-white/40 py-1">
+          <div key={day} className="text-center label-uppercase py-1">
             {day}
           </div>
         ))}
@@ -243,11 +241,11 @@ export default function CalendarWidget() {
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-white/10">
-        <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+        <div className="flex items-center gap-1.5 label-uppercase">
           <span className="w-2 h-2 rounded-full bg-blue-400" />
           Events
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] text-white/50">
+        <div className="flex items-center gap-1.5 label-uppercase">
           <span className="w-2 h-2 rounded-full bg-orange-400" />
           Task Due
         </div>

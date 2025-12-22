@@ -19,8 +19,8 @@ function StatCard({ label, value, icon, color, href, trend }: StatCardProps) {
     <Link to={href} className="glass-card rounded-xl p-4 hover-lift cursor-pointer block group">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs text-white/50 mb-1 group-hover:text-white/70 transition-colors">{label}</p>
-          <p className="text-2xl font-bold text-white">{value}</p>
+          <p className="text-stat-label group-hover:text-white/70 transition-colors">{label}</p>
+          <p className="text-stat">{value}</p>
           {trend && (
             <div className={`flex items-center gap-1 mt-1 text-xs ${trend.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {trend.value >= 0 ? (
