@@ -99,6 +99,31 @@
 }
 
 /* ============================================
+   BORDER RADIUS SYSTEM
+   ============================================ */
+
+/* Utility classes for consistent border radius */
+.rounded-card {
+  border-radius: var(--radius-xl);
+}
+
+.rounded-inner {
+  border-radius: var(--radius-lg);
+}
+
+.rounded-button {
+  border-radius: var(--radius-md);
+}
+
+.rounded-badge {
+  border-radius: var(--radius-sm);
+}
+
+.rounded-avatar {
+  border-radius: var(--radius-full);
+}
+
+/* ============================================
    THEME VARIABLES
    ============================================ */
 
@@ -128,6 +153,14 @@
 
   --shadow-color: rgba(0, 0, 0, 0.3);
   --overlay-color: rgba(0, 0, 0, 0.6);
+
+  /* Border radius system */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
 
   --scrollbar-track: rgba(26, 26, 46, 0.5);
   --scrollbar-thumb: rgba(124, 58, 237, 0.5);
@@ -160,6 +193,14 @@
 
   --shadow-color: rgba(0, 0, 0, 0.1);
   --overlay-color: rgba(0, 0, 0, 0.4);
+
+  /* Border radius system */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
 
   --scrollbar-track: rgba(241, 245, 249, 0.8);
   --scrollbar-thumb: rgba(124, 58, 237, 0.4);
@@ -282,7 +323,7 @@ body {
 
 .widget-scroll::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .widget-scroll::-webkit-scrollbar-thumb:hover {
@@ -330,6 +371,7 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
 }
 
 /* Glassmorphism effect - Light */
@@ -354,6 +396,7 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
@@ -408,6 +451,7 @@ body {
 /* Custom button styles */
 .btn-primary {
   background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
 }
 
@@ -418,6 +462,7 @@ body {
 
 .btn-secondary {
   background: var(--bg-input);
+  border-radius: var(--radius-md);
   transition: all 0.2s ease;
 }
 
@@ -429,7 +474,7 @@ body {
 .icon-btn {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -439,12 +484,12 @@ body {
 
 .icon-btn:hover {
   background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
 }
 
 .icon-btn.active {
   background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
 }
 
 /* Status indicators */
