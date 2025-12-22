@@ -66,8 +66,8 @@ export default function QuickStatsWidget() {
           to={stat.href}
           className="bg-white/5 hover:bg-white/10 rounded-xl p-3 transition-colors group"
         >
-          <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-          <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
+          <p className="text-stat-label mb-1">{stat.label}</p>
+          <p className={`text-stat ${stat.color}`}>{stat.value}</p>
         </Link>
       ))}
     </div>
