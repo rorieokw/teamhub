@@ -39,15 +39,22 @@ export function subscribeToMilestones(
 export async function createMilestone(
   projectId: string,
   title: string,
-  order: number
+  order: number,
+  description?: string
 ): Promise<string> {
-  const docRef = await addDoc(collection(db, COLLECTION), {
+  const data: Record<string, unknown> = {
     projectId,
     title,
     completed: false,
     order,
     createdAt: serverTimestamp(),
-  });
+  };
+
+  if (description) {
+    data.description = description;
+  }
+
+  const docRef = await addDoc(collection(db, COLLECTION), data);
   return docRef.id;
 }
 
@@ -71,6 +78,14 @@ export async function updateMilestoneTitle(
 ): Promise<void> {
   const docRef = doc(db, COLLECTION, id);
   await updateDoc(docRef, { title });
+}
+
+export async function updateMilestoneDescription(
+  id: string,
+  description: string
+): Promise<void> {
+  const docRef = doc(db, COLLECTION, id);
+  await updateDoc(docRef, { description });
 }
 
 export async function deleteMilestone(id: string): Promise<void> {

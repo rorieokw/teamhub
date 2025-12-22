@@ -35,6 +35,7 @@ export interface Milestone {
   id: string;
   projectId: string;
   title: string;
+  description?: string;
   completed: boolean;
   order: number;
   createdAt: Timestamp;
@@ -129,6 +130,19 @@ export interface Activity {
   announcementId?: string;
   eventId?: string;
   description: string;
+  createdAt: Timestamp;
+}
+
+// Admin activity log
+export interface ActivityLog {
+  id: string;
+  adminId: string;
+  adminName: string;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  targetName?: string;
+  details?: Record<string, unknown>;
   createdAt: Timestamp;
 }
 

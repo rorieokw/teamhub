@@ -67,7 +67,7 @@ export async function adminSetUserTitle(userId: string, title: string): Promise<
 }
 
 export async function adminSetUserRole(userId: string, role: string): Promise<void> {
-  await adminUpdateUser(userId, { role });
+  await adminUpdateUser(userId, { title: role }); // Use title field for role display
 }
 
 // ==================== PROJECT MANAGEMENT ====================
@@ -83,6 +83,10 @@ export async function getAllProjects(): Promise<Project[]> {
 
 export async function adminDeleteProject(projectId: string): Promise<void> {
   await deleteDoc(doc(db, 'projects', projectId));
+}
+
+export async function adminUpdateProject(projectId: string, data: { name?: string; description?: string }): Promise<void> {
+  await updateDoc(doc(db, 'projects', projectId), data);
 }
 
 // ==================== TASK MANAGEMENT ====================
@@ -108,6 +112,7 @@ export interface ActivityLog {
   action: string;
   userId: string;
   userName: string;
+  adminName: string; // Alias for userName for display
   targetId?: string;
   targetName?: string;
   details?: string;
@@ -252,7 +257,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     totalMessages: messages.size,
     totalProjects: projects.size,
     totalTasks: tasks.size,
-    completedTasks: tasksData.filter(t => t.status === 'completed').length,
+    completedTasks: tasksData.filter(t => t.status === 'done').length,
     totalPolls: polls.size,
     activePolls: pollsData.filter(p => !p.closed).length,
   };

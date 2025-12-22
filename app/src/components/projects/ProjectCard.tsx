@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { subscribeToProjectSessions, getSessionDisplayStatus } from '../../services/workSessions';
-import type { Project, WorkSession } from '../../types';
+import type { Project, WorkSession, User } from '../../types';
 
 interface ProjectCardProps {
   project: Project;
+  users?: User[];
   onEdit: (project: Project) => void;
   onDelete: (project: Project) => void;
 }
@@ -15,9 +16,12 @@ const statusConfig = {
   completed: { color: 'bg-blue-500', shadow: 'shadow-blue-500/50', label: 'Completed', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
 };
 
-export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
+export default function ProjectCard({ project, users = [], onEdit, onDelete }: ProjectCardProps) {
   const status = statusConfig[project.status];
   const [sessions, setSessions] = useState<WorkSession[]>([]);
+
+  // Get member users for this project
+  const memberUsers = users.filter(u => project.members?.includes(u.id));
 
   useEffect(() => {
     const unsubscribe = subscribeToProjectSessions(project.id, setSessions);
@@ -99,15 +103,38 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {project.members && project.members.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-              {project.members.length} member{project.members.length !== 1 ? 's' : ''}
+        <div className="flex items-center justify-between">
+          {/* Member Avatars */}
+          <div className="flex items-center">
+            <div className="flex -space-x-2">
+              {memberUsers.slice(0, 4).map((member) => {
+                const isCustomPicture = member.avatarUrl?.startsWith('http');
+                return (
+                  <div
+                    key={member.id}
+                    className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-medium ring-2 ring-gray-900 overflow-hidden"
+                    title={member.displayName}
+                  >
+                    {isCustomPicture ? (
+                      <img src={member.avatarUrl} alt={member.displayName} className="w-full h-full object-cover" />
+                    ) : member.avatarUrl ? (
+                      <span className="text-sm">{member.avatarUrl}</span>
+                    ) : (
+                      member.displayName?.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                );
+              })}
+              {memberUsers.length > 4 && (
+                <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-gray-300 text-xs font-medium ring-2 ring-gray-900">
+                  +{memberUsers.length - 4}
+                </div>
+              )}
             </div>
-          )}
+            {memberUsers.length === 0 && project.members && project.members.length > 0 && (
+              <span className="text-xs text-gray-500">{project.members.length} member{project.members.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
 
           {project.deadline && (
             <div className={`flex items-center gap-2 text-xs ${

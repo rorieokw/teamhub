@@ -3,12 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { updateProject, deleteProject } from '../services/projects';
+import { updateProject, deleteProject, joinProject, leaveProject } from '../services/projects';
 import {
   subscribeToMilestones,
   createMilestone,
   toggleMilestone,
   deleteMilestone,
+  updateMilestoneDescription,
   calculateProgress,
 } from '../services/milestones';
 import {
@@ -57,6 +58,11 @@ export default function ProjectDetail() {
   const [taskDeleteLoading, setTaskDeleteLoading] = useState(false);
   const [showUploadArea, setShowUploadArea] = useState(false);
   const [deletingDocument, setDeletingDocument] = useState<Document | null>(null);
+  const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null);
+  const [editingMilestoneDesc, setEditingMilestoneDesc] = useState<string | null>(null);
+  const [milestoneDescInput, setMilestoneDescInput] = useState('');
+  const [newMilestoneDesc, setNewMilestoneDesc] = useState('');
+  const [showNewMilestoneNote, setShowNewMilestoneNote] = useState(false);
 
   // Subscribe to project
   useEffect(() => {
@@ -143,8 +149,10 @@ export default function ProjectDetail() {
   async function handleAddMilestone() {
     if (!newMilestone.trim() || !id) return;
 
-    await createMilestone(id, newMilestone.trim(), milestones.length);
+    await createMilestone(id, newMilestone.trim(), milestones.length, newMilestoneDesc.trim() || undefined);
     setNewMilestone('');
+    setNewMilestoneDesc('');
+    setShowNewMilestoneNote(false);
   }
 
   async function handleToggleMilestone(milestone: Milestone) {
@@ -153,6 +161,18 @@ export default function ProjectDetail() {
 
   async function handleDeleteMilestone(milestoneId: string) {
     await deleteMilestone(milestoneId);
+  }
+
+  async function handleSaveMilestoneDescription(milestoneId: string) {
+    await updateMilestoneDescription(milestoneId, milestoneDescInput);
+    setEditingMilestoneDesc(null);
+    setMilestoneDescInput('');
+  }
+
+  function handleStartEditDescription(milestone: Milestone) {
+    setEditingMilestoneDesc(milestone.id);
+    setMilestoneDescInput(milestone.description || '');
+    setExpandedMilestone(milestone.id);
   }
 
   async function handleInvite() {
@@ -320,7 +340,26 @@ export default function ProjectDetail() {
   }
 
   const isOwner = project.createdBy === currentUser?.uid;
+  const isMember = currentUser ? project.members?.includes(currentUser.uid) : false;
   const completedCount = milestones.filter((m) => m.completed).length;
+
+  const handleJoinProject = async () => {
+    if (!currentUser || !id) return;
+    try {
+      await joinProject(id, currentUser.uid);
+    } catch (err) {
+      console.error('Failed to join project:', err);
+    }
+  };
+
+  const handleLeaveProject = async () => {
+    if (!currentUser || !id || isOwner) return;
+    try {
+      await leaveProject(id, currentUser.uid);
+    } catch (err) {
+      console.error('Failed to leave project:', err);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -338,14 +377,34 @@ export default function ProjectDetail() {
             <p className="text-gray-400 mt-1">{project.description}</p>
           )}
         </div>
-        {isOwner && (
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="px-3 py-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
-          >
-            Delete Project
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Join/Leave Button */}
+          {isMember ? (
+            !isOwner && (
+              <button
+                onClick={handleLeaveProject}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors text-sm font-medium"
+              >
+                Leave Project
+              </button>
+            )
+          ) : (
+            <button
+              onClick={handleJoinProject}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg transition-colors text-sm font-medium"
+            >
+              Join Project
+            </button>
+          )}
+          {isOwner && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="px-3 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors text-sm"
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Progress Overview */}
@@ -380,22 +439,48 @@ export default function ProjectDetail() {
             </h2>
 
             {/* Add Milestone */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                value={newMilestone}
-                onChange={(e) => setNewMilestone(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddMilestone()}
-                placeholder="Add a milestone..."
-                className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                onClick={handleAddMilestone}
-                disabled={!newMilestone.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors"
-              >
-                Add
-              </button>
+            <div className="mb-4 bg-gray-700/30 rounded-lg p-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMilestone}
+                  onChange={(e) => setNewMilestone(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !showNewMilestoneNote && handleAddMilestone()}
+                  placeholder="Add a milestone..."
+                  className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={() => setShowNewMilestoneNote(!showNewMilestoneNote)}
+                  className={`px-3 py-2 rounded-lg transition-colors ${
+                    showNewMilestoneNote || newMilestoneDesc
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                  title="Add note"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleAddMilestone}
+                  disabled={!newMilestone.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+              {showNewMilestoneNote && (
+                <div className="mt-3">
+                  <textarea
+                    value={newMilestoneDesc}
+                    onChange={(e) => setNewMilestoneDesc(e.target.value)}
+                    placeholder="Add details or notes for this milestone..."
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                    rows={2}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Milestones List */}
@@ -411,33 +496,105 @@ export default function ProjectDetail() {
                 {milestones.map((milestone) => (
                   <li
                     key={milestone.id}
-                    className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-lg group"
+                    className="bg-gray-700/50 rounded-lg group overflow-hidden"
                   >
-                    <button
-                      onClick={() => handleToggleMilestone(milestone)}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        milestone.completed
-                          ? 'bg-green-500 border-green-500 text-white'
-                          : 'border-gray-500 hover:border-green-500'
-                      }`}
-                    >
-                      {milestone.completed && '✓'}
-                    </button>
-                    <span
-                      className={`flex-1 ${
-                        milestone.completed
-                          ? 'text-gray-400 line-through'
-                          : 'text-white'
-                      }`}
-                    >
-                      {milestone.title}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteMilestone(milestone.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-400 transition-all"
-                    >
-                      ✕
-                    </button>
+                    {/* Main milestone row */}
+                    <div className="flex items-center gap-3 p-3">
+                      <button
+                        onClick={() => handleToggleMilestone(milestone)}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
+                          milestone.completed
+                            ? 'bg-green-500 border-green-500 text-white'
+                            : 'border-gray-500 hover:border-green-500'
+                        }`}
+                      >
+                        {milestone.completed && '✓'}
+                      </button>
+                      <button
+                        onClick={() => setExpandedMilestone(expandedMilestone === milestone.id ? null : milestone.id)}
+                        className={`flex-1 text-left ${
+                          milestone.completed
+                            ? 'text-gray-400 line-through'
+                            : 'text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          {milestone.title}
+                          {milestone.description && (
+                            <svg className="w-4 h-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                            </svg>
+                          )}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => handleStartEditDescription(milestone)}
+                        className={`p-1.5 rounded transition-all ${
+                          milestone.description
+                            ? 'text-purple-400 bg-purple-500/20'
+                            : 'text-gray-500 hover:text-purple-400 hover:bg-purple-500/10'
+                        }`}
+                        title={milestone.description ? "View/edit note" : "Add note"}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMilestone(milestone.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-400 transition-all"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Expanded description section */}
+                    {expandedMilestone === milestone.id && (
+                      <div className="px-3 pb-3 pt-0 ml-8 border-t border-gray-600/50">
+                        {editingMilestoneDesc === milestone.id ? (
+                          <div className="pt-3">
+                            <textarea
+                              value={milestoneDescInput}
+                              onChange={(e) => setMilestoneDescInput(e.target.value)}
+                              placeholder="Add details about this milestone..."
+                              className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                              rows={3}
+                              autoFocus
+                            />
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => handleSaveMilestoneDescription(milestone.id)}
+                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium rounded-lg transition-colors"
+                              >
+                                Save Note
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingMilestoneDesc(null);
+                                  setMilestoneDescInput('');
+                                }}
+                                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-gray-300 text-xs font-medium rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pt-3">
+                            {milestone.description ? (
+                              <p className="text-gray-300 text-sm whitespace-pre-wrap">{milestone.description}</p>
+                            ) : (
+                              <button
+                                onClick={() => handleStartEditDescription(milestone)}
+                                className="text-gray-500 text-sm hover:text-purple-400 transition-colors"
+                              >
+                                + Add a note...
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

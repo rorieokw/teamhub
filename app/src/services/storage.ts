@@ -5,7 +5,7 @@ const UPLOAD_PRESET = 'teamhub_chat';
 // Upload image to Cloudinary
 export async function uploadChatImage(
   file: File,
-  userId: string,
+  _userId: string,
   channelId: string
 ): Promise<string> {
   const formData = new FormData();
@@ -53,4 +53,30 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
   }
 
   return { valid: true };
+}
+
+// Upload profile picture to Cloudinary
+export async function uploadProfilePicture(
+  file: File,
+  userId: string
+): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', `profile-pictures/${userId}`);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to upload profile picture');
+  }
+
+  const data = await response.json();
+  return data.secure_url;
 }

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserRank } from '../hooks/useUserRank';
 import { updateUserProfile, changeDisplayName } from '../services/users';
+import { uploadProfilePicture, validateImageFile } from '../services/storage';
 import { RankCard } from '../components/ranks/RankBadge';
 import { RANK_COLORS, RANK_NAMES, getPointsToNextRank } from '../services/ranks';
 import { getReputationLevel } from '../services/reputation';
@@ -42,6 +43,36 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showReputationModal, setShowReputationModal] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if avatar is a URL (custom picture) or emoji
+  const isCustomPicture = (avatar: string) => avatar.startsWith('http');
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setUploadError(validation.error || 'Invalid file');
+      return;
+    }
+
+    setUploadError('');
+    setUploadingPicture(true);
+
+    try {
+      const url = await uploadProfilePicture(file, currentUser.uid);
+      setSelectedAvatar(url);
+    } catch (err) {
+      console.error('Failed to upload profile picture:', err);
+      setUploadError('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingPicture(false);
+    }
+  }
 
   // Sync local state with userProfile when it changes
   useEffect(() => {
@@ -98,8 +129,12 @@ export default function Profile() {
           <div className="glass rounded-xl p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Preview</h3>
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-4xl shadow-lg shadow-purple-500/25">
-                {selectedAvatar || userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-4xl shadow-lg shadow-purple-500/25 overflow-hidden">
+                {isCustomPicture(selectedAvatar) ? (
+                  <img src={selectedAvatar} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  selectedAvatar || userProfile?.displayName?.charAt(0).toUpperCase() || 'U'
+                )}
               </div>
               <div>
                 <p
@@ -140,18 +175,83 @@ export default function Profile() {
             <p className="text-xs text-gray-500 mt-2">This is the name other team members will see</p>
           </div>
 
-          {/* Avatar Picker */}
+          {/* Profile Picture / Avatar */}
           <div className="glass rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Choose Avatar</h3>
-            <div className="grid grid-cols-6 gap-2">
+            <h3 className="text-lg font-semibold text-white mb-4">Profile Picture</h3>
+
+            {/* Current Selection Preview */}
+            <div className="flex items-center gap-4 mb-6 p-4 bg-white/5 rounded-xl">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/25 overflow-hidden">
+                {isCustomPicture(selectedAvatar) ? (
+                  <img src={selectedAvatar} alt="Profile" className="w-full h-full object-cover" />
+                ) : selectedAvatar ? (
+                  <span className="text-4xl">{selectedAvatar}</span>
+                ) : (
+                  <span className="text-3xl font-bold text-white">{userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium">
+                  {isCustomPicture(selectedAvatar) ? 'Custom Picture' : selectedAvatar ? 'Emoji Avatar' : 'Default Initial'}
+                </p>
+                <p className="text-gray-400 text-sm">This is shown across the app</p>
+              </div>
+            </div>
+
+            {/* Upload Custom Picture */}
+            <div className="mb-6">
+              <p className="text-sm text-gray-400 mb-3">Upload a custom picture</p>
+              <div className="flex items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPicture}
+                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-all flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {uploadingPicture ? 'Uploading...' : 'Upload Picture'}
+                </button>
+                {isCustomPicture(selectedAvatar) && (
+                  <button
+                    onClick={() => setSelectedAvatar('')}
+                    className="px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium rounded-xl transition-all"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">JPEG, PNG, GIF or WebP. Max 10MB.</p>
+              {uploadError && (
+                <p className="text-xs text-red-400 mt-1">{uploadError}</p>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px bg-white/10"></div>
+              <span className="text-xs text-gray-500 uppercase tracking-wider">or choose an avatar</span>
+              <div className="flex-1 h-px bg-white/10"></div>
+            </div>
+
+            {/* Avatar Grid */}
+            <div className="grid grid-cols-7 gap-2">
               {/* Default (initial) option */}
               <button
                 onClick={() => setSelectedAvatar('')}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl transition-all ${
-                  selectedAvatar === ''
-                    ? 'bg-purple-600 ring-2 ring-purple-400 ring-offset-2 ring-offset-[#1a1a2e]'
-                    : 'bg-white/10 hover:bg-white/20'
+                className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold transition-all ${
+                  !selectedAvatar || selectedAvatar === ''
+                    ? 'bg-purple-600 ring-2 ring-purple-400 ring-offset-2 ring-offset-[#1a1a2e] text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-gray-300'
                 }`}
+                title="Use initial"
               >
                 {userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}
               </button>
@@ -159,7 +259,7 @@ export default function Profile() {
                 <button
                   key={avatar}
                   onClick={() => setSelectedAvatar(avatar)}
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-all ${
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-all ${
                     selectedAvatar === avatar
                       ? 'bg-purple-600 ring-2 ring-purple-400 ring-offset-2 ring-offset-[#1a1a2e]'
                       : 'bg-white/10 hover:bg-white/20'

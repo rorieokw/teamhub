@@ -81,3 +81,23 @@ export async function deleteProject(id: string): Promise<void> {
   const docRef = doc(db, COLLECTION, id);
   await deleteDoc(docRef);
 }
+
+// Join a project
+export async function joinProject(projectId: string, userId: string): Promise<void> {
+  const docRef = doc(db, COLLECTION, projectId);
+  const { arrayUnion } = await import('firebase/firestore');
+  await updateDoc(docRef, {
+    members: arrayUnion(userId),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// Leave a project
+export async function leaveProject(projectId: string, userId: string): Promise<void> {
+  const docRef = doc(db, COLLECTION, projectId);
+  const { arrayRemove } = await import('firebase/firestore');
+  await updateDoc(docRef, {
+    members: arrayRemove(userId),
+    updatedAt: serverTimestamp(),
+  });
+}

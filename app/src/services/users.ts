@@ -9,9 +9,24 @@ import {
   arrayUnion,
   Timestamp,
   onSnapshot,
+  orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { User, NameHistoryEntry } from '../types';
+
+// Subscribe to all users (for showing member avatars, etc.)
+export function subscribeToAllUsers(
+  callback: (users: User[]) => void
+): () => void {
+  const q = query(collection(db, 'users'), orderBy('displayName'));
+  return onSnapshot(q, (snapshot) => {
+    const users: User[] = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as User[];
+    callback(users);
+  });
+}
 
 export async function updateUserProfile(
   userId: string,

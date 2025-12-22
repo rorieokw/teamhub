@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../hooks/useAdmin';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import {
   adminDeleteMessage,
   adminDeletePoll,
   adminDeleteProject,
+  adminUpdateProject,
   adminDeleteTask,
   adminSetUserTitle,
   adminBulkDeleteMessages,
@@ -60,6 +61,11 @@ export default function AdminPanel() {
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementMessage, setAnnouncementMessage] = useState('');
   const [announcementType, setAnnouncementType] = useState<'info' | 'warning' | 'success' | 'error'>('info');
+
+  // Project edit
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectDesc, setEditProjectDesc] = useState('');
 
   // Redirect if not admin
   useEffect(() => {
@@ -189,6 +195,33 @@ export default function AdminPanel() {
       }
     } catch (error) {
       console.error('Failed to delete project:', error);
+    }
+  };
+
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setEditProjectName(project.name);
+    setEditProjectDesc(project.description || '');
+  };
+
+  const handleSaveProject = async () => {
+    if (!editingProject || !editProjectName.trim()) return;
+    try {
+      await adminUpdateProject(editingProject.id, {
+        name: editProjectName.trim(),
+        description: editProjectDesc.trim(),
+      });
+      setProjects(projects.map(p =>
+        p.id === editingProject.id
+          ? { ...p, name: editProjectName.trim(), description: editProjectDesc.trim() }
+          : p
+      ));
+      if (currentUser && userProfile) {
+        await logAdminAction('Updated project', currentUser.uid, userProfile.displayName, editingProject.id, editProjectName);
+      }
+      setEditingProject(null);
+    } catch (error) {
+      console.error('Failed to update project:', error);
     }
   };
 
@@ -339,7 +372,7 @@ export default function AdminPanel() {
     );
   }
 
-  const tabs: { id: TabType; label: string; icon: JSX.Element }[] = [
+  const tabs: { id: TabType; label: string; icon: ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg> },
     { id: 'users', label: 'Users', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg> },
     { id: 'messages', label: 'Messages', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg> },
@@ -627,8 +660,14 @@ export default function AdminPanel() {
                     <tr key={user.id} className="hover:bg-white/5">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
-                            {user.avatarUrl || user.displayName?.charAt(0).toUpperCase()}
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
+                            {user.avatarUrl?.startsWith('http') ? (
+                              <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                            ) : user.avatarUrl ? (
+                              <span className="text-base">{user.avatarUrl}</span>
+                            ) : (
+                              user.displayName?.charAt(0).toUpperCase()
+                            )}
                           </div>
                           <span className="text-sm text-white">{user.displayName}</span>
                         </div>
@@ -690,15 +729,15 @@ export default function AdminPanel() {
                         <div className="flex items-center gap-2">
                           <div
                             className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-lg"
-                            style={{ backgroundColor: project.color || '#8b5cf6' }}
+                            style={{ backgroundColor: '#8b5cf6' }}
                           >
-                            {project.icon || '📁'}
+                            📁
                           </div>
                           <span className="text-sm text-white">{project.name}</span>
                         </div>
                       </td>
                       <td className="p-3">
-                        <span className="text-sm text-gray-400">{getUserName(project.ownerId)}</span>
+                        <span className="text-sm text-gray-400">{getUserName(project.createdBy)}</span>
                       </td>
                       <td className="p-3">
                         <span className="text-sm text-gray-400">{project.members?.length || 1}</span>
@@ -707,6 +746,12 @@ export default function AdminPanel() {
                         <span className="text-xs text-gray-500">{formatDate(project.createdAt)}</span>
                       </td>
                       <td className="p-3 text-right">
+                        <button
+                          onClick={() => handleEditProject(project)}
+                          className="px-3 py-1 text-xs text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors mr-2"
+                        >
+                          Edit
+                        </button>
                         <button
                           onClick={() => handleDeleteProject(project.id, project.name)}
                           className="px-3 py-1 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
@@ -752,7 +797,7 @@ export default function AdminPanel() {
                       </td>
                       <td className="p-3">
                         <span className={`text-xs px-2 py-1 rounded-full ${
-                          task.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          task.status === 'done' ? 'bg-green-500/20 text-green-400' :
                           task.status === 'in-progress' ? 'bg-blue-500/20 text-blue-400' :
                           'bg-gray-500/20 text-gray-400'
                         }`}>
@@ -770,7 +815,7 @@ export default function AdminPanel() {
                       </td>
                       <td className="p-3">
                         <span className="text-sm text-gray-400">
-                          {task.assigneeId ? getUserName(task.assigneeId) : 'Unassigned'}
+                          {task.assignedTo ? getUserName(task.assignedTo) : 'Unassigned'}
                         </span>
                       </td>
                       <td className="p-3 text-right">
@@ -1068,6 +1113,56 @@ export default function AdminPanel() {
                 <button
                   onClick={handleUpdateUserTitle}
                   className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="glass-card rounded-xl p-6 w-full max-w-md mx-4 animate-scale-in">
+            <h3 className="text-lg font-semibold text-white mb-4">Edit Project</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Project Name</label>
+                <input
+                  type="text"
+                  value={editProjectName}
+                  onChange={(e) => setEditProjectName(e.target.value)}
+                  placeholder="Project name"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Description</label>
+                <textarea
+                  value={editProjectDesc}
+                  onChange={(e) => setEditProjectDesc(e.target.value)}
+                  placeholder="Project description"
+                  rows={3}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setEditingProject(null);
+                    setEditProjectName('');
+                    setEditProjectDesc('');
+                  }}
+                  className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProject}
+                  disabled={!editProjectName.trim()}
+                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Save
                 </button>

@@ -142,14 +142,16 @@ export default function Calendar() {
     if (!currentUser || !userProfile || !selectedDate || !newEventTitle.trim()) return;
 
     try {
-      await createEvent({
-        title: newEventTitle.trim(),
-        description: newEventDescription.trim(),
-        date: selectedDate,
-        allDay: true,
-        createdBy: currentUser.uid,
-        createdByName: userProfile.displayName,
-      });
+      await createEvent(
+        newEventTitle.trim(),
+        selectedDate,
+        currentUser.uid,
+        userProfile.displayName,
+        {
+          description: newEventDescription.trim(),
+          allDay: true,
+        }
+      );
 
       setNewEventTitle('');
       setNewEventDescription('');

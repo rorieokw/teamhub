@@ -6,14 +6,16 @@ import {
   updateProject,
   deleteProject,
 } from '../services/projects';
+import { subscribeToAllUsers } from '../services/users';
 import ProjectModal from '../components/projects/ProjectModal';
 import ProjectCard from '../components/projects/ProjectCard';
 import ConfirmModal from '../components/ui/ConfirmModal';
-import type { Project } from '../types';
+import type { Project, User } from '../types';
 
 export default function Projects() {
   const { currentUser } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -21,12 +23,19 @@ export default function Projects() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = subscribeToProjects((data) => {
+    const unsubProjects = subscribeToProjects((data) => {
       setProjects(data);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubUsers = subscribeToAllUsers((data) => {
+      setUsers(data);
+    });
+
+    return () => {
+      unsubProjects();
+      unsubUsers();
+    };
   }, []);
 
   async function handleCreateProject(data: {
@@ -136,6 +145,7 @@ export default function Projects() {
                   <ProjectCard
                     key={project.id}
                     project={project}
+                    users={users}
                     onEdit={setEditingProject}
                     onDelete={setDeletingProject}
                   />
@@ -156,6 +166,7 @@ export default function Projects() {
                   <ProjectCard
                     key={project.id}
                     project={project}
+                    users={users}
                     onEdit={setEditingProject}
                     onDelete={setDeletingProject}
                   />
@@ -176,6 +187,7 @@ export default function Projects() {
                   <ProjectCard
                     key={project.id}
                     project={project}
+                    users={users}
                     onEdit={setEditingProject}
                     onDelete={setDeletingProject}
                   />
