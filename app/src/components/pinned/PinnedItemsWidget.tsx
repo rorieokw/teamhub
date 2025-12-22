@@ -52,8 +52,8 @@ export default function PinnedItemsWidget() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
         </div>
-        <p className="text-sm text-white/50">No pinned items</p>
-        <p className="text-xs text-white/30 mt-1">
+        <p className="empty-state-title">No pinned items</p>
+        <p className="empty-state-description">
           Pin tasks, messages, or documents
         </p>
       </div>
@@ -66,7 +66,7 @@ export default function PinnedItemsWidget() {
         <PinnedItemCard key={item.id} item={item} />
       ))}
       {pinnedItems.length > 5 && (
-        <p className="text-center text-gray-500 text-xs mt-2">+{pinnedItems.length - 5} more</p>
+        <p className="text-center text-subtle mt-2">+{pinnedItems.length - 5} more</p>
       )}
     </div>
   );

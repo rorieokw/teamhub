@@ -97,7 +97,7 @@ export default function TeamAvailabilityWidget() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs text-gray-400">{onlineCount} online</span>
+          <span className="text-subtle">{onlineCount} online</span>
         </div>
       </div>
 
@@ -158,11 +158,14 @@ export default function TeamAvailabilityWidget() {
       </div>
 
       {teamMembers.length > 5 && (
-        <p className="text-center text-gray-500 text-xs mt-2">+{teamMembers.length - 5} more</p>
+        <p className="text-center text-subtle mt-2">+{teamMembers.length - 5} more</p>
       )}
 
       {teamMembers.length === 0 && (
-        <p className="text-sm text-white/40 text-center py-4">No team members found</p>
+        <div className="text-center py-4">
+          <p className="empty-state-title">No team members found</p>
+          <p className="empty-state-description">Invite your team to get started</p>
+        </div>
       )}
 
       {selectedUserId && (
