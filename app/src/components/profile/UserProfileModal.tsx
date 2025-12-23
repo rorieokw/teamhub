@@ -4,6 +4,7 @@ import { subscribeToUserStats } from '../../services/ranks';
 import { RANK_COLORS, RANK_NAMES } from '../../services/ranks';
 import { getReputationLevel } from '../../services/reputation';
 import RankBadge from '../ranks/RankBadge';
+import ProfileBanner from './ProfileBanner';
 import type { User, UserStats } from '../../types';
 
 interface UserProfileModalProps {
@@ -68,50 +69,54 @@ export default function UserProfileModal({ userId, isOpen, onClose, onStartDM }:
             <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : user ? (
-          <div className="p-6 space-y-6">
-            {/* Profile Header */}
-            <div className="flex items-center gap-4">
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={user.displayName || 'User'}
-                  className="w-20 h-20 rounded-2xl object-cover shadow-lg"
-                />
-              ) : (
-                <div
-                  className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg"
-                  style={{
-                    background: user.nameColor
-                      ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
-                      : 'linear-gradient(135deg, #8b5cf6, #ec4899)',
-                  }}
-                >
-                  {user.displayName?.charAt(0).toUpperCase() || 'U'}
-                </div>
-              )}
-              <div>
-                <p
-                  className="text-xl font-bold"
-                  style={{ color: user.nameColor || '#ffffff' }}
-                >
-                  {user.displayName}
-                </p>
-                {user.title && (
-                  <p className="text-purple-400 text-sm font-medium">{user.title}</p>
-                )}
-                {userStats && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <RankBadge rank={userStats.rank} size="sm" />
-                    <span
-                      className="text-sm font-medium"
-                      style={{ color: RANK_COLORS[userStats.rank.tier].primary }}
-                    >
-                      {RANK_NAMES[userStats.rank.tier]} {userStats.rank.division || ''}
-                    </span>
+          <div>
+            {/* Profile Banner */}
+            <ProfileBanner bannerId={user.bannerId} height="lg" rounded="none" />
+
+            <div className="p-6 space-y-6 -mt-12 relative">
+              {/* Profile Header */}
+              <div className="flex items-end gap-4">
+                {user.avatarUrl?.startsWith('http') ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.displayName || 'User'}
+                    className="w-20 h-20 rounded-2xl object-cover shadow-lg ring-4 ring-[#2d2a4a]"
+                  />
+                ) : (
+                  <div
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg ring-4 ring-[#2d2a4a]"
+                    style={{
+                      background: user.nameColor
+                        ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
+                        : 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                    }}
+                  >
+                    {user.avatarUrl || user.displayName?.charAt(0).toUpperCase() || 'U'}
                   </div>
                 )}
+                <div className="pb-1">
+                  <p
+                    className="text-xl font-bold"
+                    style={{ color: user.nameColor || '#ffffff' }}
+                  >
+                    {user.displayName}
+                  </p>
+                  {user.title && (
+                    <p className="text-purple-400 text-sm font-medium">{user.title}</p>
+                  )}
+                  {userStats && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <RankBadge rank={userStats.rank} size="sm" />
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: RANK_COLORS[userStats.rank.tier].primary }}
+                      >
+                        {RANK_NAMES[userStats.rank.tier]} {userStats.rank.division || ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
             {/* Reputation */}
             {(() => {
@@ -212,6 +217,7 @@ export default function UserProfileModal({ userId, isOpen, onClose, onStartDM }:
                 </div>
               </div>
             )}
+            </div>
           </div>
         ) : (
           <div className="p-8 text-center text-gray-400">

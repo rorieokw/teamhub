@@ -3,20 +3,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUserRank } from '../hooks/useUserRank';
 import { updateUserProfile, changeDisplayName } from '../services/users';
 import { uploadProfilePicture, validateImageFile } from '../services/storage';
-import { RankCard } from '../components/ranks/RankBadge';
 import { RANK_COLORS, RANK_NAMES, getPointsToNextRank } from '../services/ranks';
 import { getReputationLevel } from '../services/reputation';
 import ReputationModal from '../components/profile/ReputationModal';
-import { RANK_POINTS } from '../types';
+import RankModal from '../components/profile/RankModal';
+import ProfileBanner from '../components/profile/ProfileBanner';
+import BannerSelector from '../components/profile/BannerSelector';
 
-// Preset avatar options - people occupations
+// Preset avatar options - compact set
 const AVATAR_OPTIONS = [
-  '👨‍💻', '👩‍💻', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬',
-  '👨‍🎨', '👩‍🎨', '👨‍🏫', '👩‍🏫', '👨‍⚕️', '👩‍⚕️',
-  '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧', '👨‍🚀', '👩‍🚀',
-  '👨‍✈️', '👩‍✈️', '👨‍🎤', '👩‍🎤', '👨‍⚖️', '👩‍⚖️',
-  '👷', '👮', '🕵️', '💂', '🧑‍🚒', '🧑‍🌾',
-  '🧑‍🏭', '🧑‍🎓', '🦸', '🦹', '🥷', '🧙',
+  '👨‍💻', '👩‍💻', '👨‍💼', '👩‍💼', '👨‍🔬', '👩‍🔬', '👨‍🎨', '👩‍🎨',
+  '👨‍🏫', '👩‍🏫', '👨‍⚕️', '👩‍⚕️', '👨‍🍳', '👩‍🍳', '👨‍🔧', '👩‍🔧',
+  '👨‍🚀', '👩‍🚀', '👷', '👮', '🕵️', '💂', '🦸', '🧙',
 ];
 
 // Name color options
@@ -38,6 +36,7 @@ export default function Profile() {
   const userStats = useUserRank(currentUser?.uid);
   const [selectedAvatar, setSelectedAvatar] = useState(userProfile?.avatarUrl || '');
   const [selectedColor, setSelectedColor] = useState(userProfile?.nameColor || '');
+  const [selectedBanner, setSelectedBanner] = useState(userProfile?.bannerId || 'default');
   const [title, setTitle] = useState(userProfile?.title || '');
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [saving, setSaving] = useState(false);
@@ -45,9 +44,10 @@ export default function Profile() {
   const [showReputationModal, setShowReputationModal] = useState(false);
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [showBanners, setShowBanners] = useState(false);
+  const [showRankModal, setShowRankModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check if avatar is a URL (custom picture) or emoji
   const isCustomPicture = (avatar: string) => avatar.startsWith('http');
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -74,11 +74,11 @@ export default function Profile() {
     }
   }
 
-  // Sync local state with userProfile when it changes
   useEffect(() => {
     if (userProfile) {
       setSelectedAvatar(userProfile.avatarUrl || '');
       setSelectedColor(userProfile.nameColor || '');
+      setSelectedBanner(userProfile.bannerId || 'default');
       setTitle(userProfile.title || '');
       setDisplayName(userProfile.displayName || '');
     }
@@ -89,14 +89,13 @@ export default function Profile() {
 
     setSaving(true);
     try {
-      // Update profile settings
       await updateUserProfile(currentUser.uid, {
         avatarUrl: selectedAvatar,
         nameColor: selectedColor,
         title: title,
+        bannerId: selectedBanner,
       });
 
-      // Handle name change separately to track history
       if (displayName.trim() && displayName !== userProfile.displayName) {
         await changeDisplayName(currentUser.uid, userProfile.displayName, displayName.trim());
       }
@@ -115,236 +114,255 @@ export default function Profile() {
     ? userStats.rank.lp
     : Math.min((userStats?.rank.lp || 0) / 100, 100);
 
+  const repLevel = getReputationLevel(userProfile?.reputation ?? 3000);
+
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto">
-      <div className="mb-8">
+    <div className="animate-fade-in max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Your Profile</h1>
-        <p className="text-gray-400 mt-1">Customize your appearance and view your progress</p>
+        <p className="text-gray-400 text-sm">Customize your appearance and view your progress</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column - Customization */}
-        <div className="space-y-6">
-          {/* Current Profile Preview */}
-          <div className="glass rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Preview</h3>
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-4xl shadow-lg shadow-purple-500/25 overflow-hidden">
-                {isCustomPicture(selectedAvatar) ? (
-                  <img src={selectedAvatar} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  selectedAvatar || userProfile?.displayName?.charAt(0).toUpperCase() || 'U'
-                )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left Column - Preview & Basic Info */}
+        <div className="lg:col-span-2 space-y-5">
+          {/* Profile Preview Card */}
+          <div className="glass rounded-xl overflow-hidden">
+            <ProfileBanner bannerId={selectedBanner} height="sm" rounded="none" />
+            <div className="p-4 -mt-8 relative">
+              <div className="flex items-end gap-4">
+                {/* Avatar */}
+                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-3xl shadow-lg overflow-hidden ring-3 ring-[#2d2a4a] flex-shrink-0">
+                  {isCustomPicture(selectedAvatar) ? (
+                    <img src={selectedAvatar} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    selectedAvatar || userProfile?.displayName?.charAt(0).toUpperCase() || 'U'
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 pb-1">
+                  <p className="text-lg font-bold truncate" style={{ color: selectedColor || '#ffffff' }}>
+                    {displayName || userProfile?.displayName}
+                  </p>
+                  <div className="flex items-center gap-2 text-sm">
+                    {title && <span className="text-purple-400">{title}</span>}
+                    {title && userStats && <span className="text-gray-600">•</span>}
+                    {userStats && (
+                      <span style={{ color: RANK_COLORS[userStats.rank.tier].primary }}>
+                        {RANK_NAMES[userStats.rank.tier]} {userStats.rank.division || ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Basic Info - Combined */}
+          <div className="glass rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Basic Info</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Display Name</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your name"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  maxLength={30}
+                />
               </div>
               <div>
-                <p
-                  className="text-xl font-bold"
-                  style={{ color: selectedColor || '#ffffff' }}
-                >
-                  {displayName || userProfile?.displayName}
-                </p>
-                {title && (
-                  <p className="text-purple-400 text-sm font-medium">{title}</p>
-                )}
-                <p className="text-gray-400 text-sm">{userProfile?.email}</p>
-                {userStats && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span
-                      className="text-sm font-medium"
-                      style={{ color: RANK_COLORS[userStats.rank.tier].primary }}
-                    >
-                      {RANK_NAMES[userStats.rank.tier]} {userStats.rank.division || ''}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Display Name */}
-          <div className="glass rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Display Name</h3>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Enter your display name"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              maxLength={30}
-            />
-            <p className="text-xs text-gray-500 mt-2">This is the name other team members will see</p>
-          </div>
-
-          {/* Profile Picture / Avatar */}
-          <div className="glass rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Profile Picture</h3>
-
-            {/* Current Selection Preview */}
-            <div className="flex items-center gap-4 mb-6 p-4 bg-white/5 rounded-xl">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/25 overflow-hidden">
-                {isCustomPicture(selectedAvatar) ? (
-                  <img src={selectedAvatar} alt="Profile" className="w-full h-full object-cover" />
-                ) : selectedAvatar ? (
-                  <span className="text-4xl">{selectedAvatar}</span>
-                ) : (
-                  <span className="text-3xl font-bold text-white">{userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}</span>
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium">
-                  {isCustomPicture(selectedAvatar) ? 'Custom Picture' : selectedAvatar ? 'Emoji Avatar' : 'Default Initial'}
-                </p>
-                <p className="text-gray-400 text-sm">This is shown across the app</p>
-              </div>
-            </div>
-
-            {/* Upload Custom Picture */}
-            <div className="mb-6">
-              <p className="text-sm text-gray-400 mb-3">Upload a custom picture</p>
-              <div className="flex items-center gap-3">
+                <label className="text-xs text-gray-500 mb-1 block">Job Title</label>
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  onChange={handleFileUpload}
-                  className="hidden"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Developer"
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  maxLength={50}
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingPicture}
-                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-all flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {uploadingPicture ? 'Uploading...' : 'Upload Picture'}
-                </button>
-                {isCustomPicture(selectedAvatar) && (
+              </div>
+            </div>
+          </div>
+
+          {/* Appearance - Avatar & Color Combined */}
+          <div className="glass rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Appearance</h3>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Avatar Selection */}
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-2xl overflow-hidden flex-shrink-0">
+                    {isCustomPicture(selectedAvatar) ? (
+                      <img src={selectedAvatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      selectedAvatar || userProfile?.displayName?.charAt(0).toUpperCase() || 'U'
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPicture}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-all"
+                    >
+                      {uploadingPicture ? '...' : 'Upload'}
+                    </button>
+                    {isCustomPicture(selectedAvatar) && (
+                      <button
+                        onClick={() => setSelectedAvatar('')}
+                        className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-medium rounded-lg"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {uploadError && <p className="text-xs text-red-400 mb-2">{uploadError}</p>}
+
+                {/* Avatar Grid - Compact */}
+                <div className="grid grid-cols-8 gap-1.5">
                   <button
                     onClick={() => setSelectedAvatar('')}
-                    className="px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium rounded-xl transition-all"
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-all ${
+                      !selectedAvatar ? 'bg-purple-600 ring-2 ring-purple-400' : 'bg-white/10 hover:bg-white/20'
+                    }`}
                   >
-                    Remove
+                    {userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}
                   </button>
-                )}
+                  {AVATAR_OPTIONS.map((avatar) => (
+                    <button
+                      key={avatar}
+                      onClick={() => setSelectedAvatar(avatar)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-base transition-all ${
+                        selectedAvatar === avatar ? 'bg-purple-600 ring-2 ring-purple-400' : 'bg-white/10 hover:bg-white/20'
+                      }`}
+                    >
+                      {avatar}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">JPEG, PNG, GIF or WebP. Max 10MB.</p>
-              {uploadError && (
-                <p className="text-xs text-red-400 mt-1">{uploadError}</p>
+
+              {/* Divider */}
+              <div className="hidden sm:block w-px bg-white/10" />
+
+              {/* Name Color */}
+              <div className="sm:w-48">
+                <label className="text-xs text-gray-500 mb-2 block">Name Color</label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {NAME_COLORS.map((color) => (
+                    <button
+                      key={color.name}
+                      onClick={() => setSelectedColor(color.value)}
+                      className={`h-7 rounded-md transition-all ${
+                        selectedColor === color.value ? 'ring-2 ring-purple-400 ring-offset-1 ring-offset-[#1a1a2e]' : ''
+                      }`}
+                      style={{ backgroundColor: color.value || '#ffffff20' }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Banner Selection - Collapsible */}
+          {userStats && (
+            <div className="glass rounded-xl overflow-hidden">
+              <button
+                onClick={() => setShowBanners(!showBanners)}
+                className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-8 rounded-md overflow-hidden">
+                    <ProfileBanner bannerId={selectedBanner} height="sm" rounded="all" className="h-full" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-semibold text-white">Profile Banner</h3>
+                    <p className="text-xs text-gray-500">Unlock banners by ranking up</p>
+                  </div>
+                </div>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform ${showBanners ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showBanners && (
+                <div className="px-4 pb-4 border-t border-white/5">
+                  <div className="pt-4">
+                    <BannerSelector
+                      selectedBannerId={selectedBanner}
+                      onSelect={setSelectedBanner}
+                      currentRankTier={userStats.rank.tier}
+                      currentReputationLevel={repLevel.label}
+                      unlockedBanners={userProfile?.unlockedBanners || []}
+                    />
+                  </div>
+                </div>
               )}
             </div>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex-1 h-px bg-white/10"></div>
-              <span className="text-xs text-gray-500 uppercase tracking-wider">or choose an avatar</span>
-              <div className="flex-1 h-px bg-white/10"></div>
-            </div>
-
-            {/* Avatar Grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {/* Default (initial) option */}
-              <button
-                onClick={() => setSelectedAvatar('')}
-                className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold transition-all ${
-                  !selectedAvatar || selectedAvatar === ''
-                    ? 'bg-purple-600 ring-2 ring-purple-400 ring-offset-2 ring-offset-[#1a1a2e] text-white'
-                    : 'bg-white/10 hover:bg-white/20 text-gray-300'
-                }`}
-                title="Use initial"
-              >
-                {userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}
-              </button>
-              {AVATAR_OPTIONS.map((avatar) => (
-                <button
-                  key={avatar}
-                  onClick={() => setSelectedAvatar(avatar)}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-all ${
-                    selectedAvatar === avatar
-                      ? 'bg-purple-600 ring-2 ring-purple-400 ring-offset-2 ring-offset-[#1a1a2e]'
-                      : 'bg-white/10 hover:bg-white/20'
-                  }`}
-                >
-                  {avatar}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Name Color Picker */}
-          <div className="glass rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Name Color</h3>
-            <div className="grid grid-cols-5 gap-2">
-              {NAME_COLORS.map((color) => (
-                <button
-                  key={color.name}
-                  onClick={() => setSelectedColor(color.value)}
-                  className={`h-10 rounded-xl flex items-center justify-center text-sm font-medium transition-all ${
-                    selectedColor === color.value
-                      ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-[#1a1a2e]'
-                      : ''
-                  }`}
-                  style={{
-                    backgroundColor: color.value || '#ffffff20',
-                    color: color.value ? '#fff' : '#9ca3af',
-                  }}
-                >
-                  {color.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Job Title */}
-          <div className="glass rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Job Title</h3>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Lead Developer, Designer, Project Manager"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              maxLength={50}
-            />
-            <p className="text-xs text-gray-500 mt-2">This will be displayed under your name</p>
-          </div>
+          )}
 
           {/* Save Button */}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-lg shadow-purple-500/25"
+            className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white font-semibold rounded-xl transition-all shadow-lg shadow-purple-500/25"
           >
             {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
 
-        {/* Right Column - Rank Progress */}
-        <div className="space-y-6">
-          {/* Current Rank */}
+        {/* Right Column - Stats & Progress */}
+        <div className="space-y-5">
           {userStats && (
             <>
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-4">Your Rank</h3>
-                <RankCard rank={userStats.rank} />
-              </div>
-
-              {/* Progress to Next Rank */}
-              <div className="glass rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Progress to Next Rank</h3>
-
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-400">
-                      {userStats.rank.division
-                        ? `${RANK_NAMES[userStats.rank.tier]} ${userStats.rank.division}`
-                        : RANK_NAMES[userStats.rank.tier]}
-                    </span>
-                    <span className="text-gray-400">
-                      {pointsToNext > 0 ? `${pointsToNext} pts to next` : 'Max rank!'}
-                    </span>
+              {/* Rank & Progress Combined */}
+              <div
+                className="glass rounded-xl p-4 cursor-pointer hover:bg-white/5 transition-colors group"
+                onClick={() => setShowRankModal(true)}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                    style={{
+                      background: `linear-gradient(135deg, ${RANK_COLORS[userStats.rank.tier].primary}40, ${RANK_COLORS[userStats.rank.tier].secondary}40)`,
+                      boxShadow: `0 0 20px ${RANK_COLORS[userStats.rank.tier].primary}30`,
+                    }}
+                  >
+                    {userStats.rank.tier === 'iron' && '⚙️'}
+                    {userStats.rank.tier === 'bronze' && '🥉'}
+                    {userStats.rank.tier === 'silver' && '🥈'}
+                    {userStats.rank.tier === 'gold' && '🥇'}
+                    {userStats.rank.tier === 'platinum' && '💎'}
+                    {userStats.rank.tier === 'emerald' && '💚'}
+                    {userStats.rank.tier === 'diamond' && '💠'}
+                    {userStats.rank.tier === 'master' && '👑'}
+                    {userStats.rank.tier === 'grandmaster' && '🔥'}
+                    {userStats.rank.tier === 'challenger' && '⚡'}
                   </div>
-                  <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div>
+                    <p
+                      className="text-lg font-bold"
+                      style={{ color: RANK_COLORS[userStats.rank.tier].primary }}
+                    >
+                      {RANK_NAMES[userStats.rank.tier]} {userStats.rank.division || ''}
+                    </p>
+                    <p className="text-xs text-gray-400">{userStats.rank.lp} LP • {userStats.totalPoints.toLocaleString()} total pts</p>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-2">
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{
@@ -353,117 +371,78 @@ export default function Profile() {
                       }}
                     />
                   </div>
-                  <p className="text-center text-sm text-gray-500 mt-2">
-                    {userStats.rank.lp} LP
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    {pointsToNext > 0 ? `${pointsToNext} pts to next rank` : 'Max rank achieved!'}
                   </p>
-                </div>
-
-                {/* How to earn points */}
-                <div className="border-t border-white/10 pt-4">
-                  <h4 className="text-sm font-medium text-gray-400 mb-3">How to earn points:</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Complete a task</span>
-                      <span className="text-purple-400 font-medium">+{RANK_POINTS.TASK_COMPLETED} pts</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Create a task</span>
-                      <span className="text-blue-400 font-medium">+{RANK_POINTS.TASK_CREATED} pts</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Create a project</span>
-                      <span className="text-green-400 font-medium">+{RANK_POINTS.PROJECT_CREATED} pts</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Send a message</span>
-                      <span className="text-pink-400 font-medium">+{RANK_POINTS.MESSAGE_SENT} pt</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Add a comment</span>
-                      <span className="text-orange-400 font-medium">+{RANK_POINTS.COMMENT_ADDED} pts</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Complete a milestone</span>
-                      <span className="text-cyan-400 font-medium">+{RANK_POINTS.MILESTONE_COMPLETED} pts</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reputation */}
-              <div
-                className="glass rounded-xl p-6 cursor-pointer hover:bg-white/5 transition-colors group"
-                onClick={() => setShowReputationModal(true)}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Reputation</h3>
-                  <svg className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-400 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2" />
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                    <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="bold" fill="currentColor">i</text>
                   </svg>
                 </div>
-                {(() => {
-                  const reputation = userProfile?.reputation ?? 3000;
-                  const repLevel = getReputationLevel(reputation);
-                  return (
-                    <>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className={`text-xl font-bold ${repLevel.color}`}>
-                          {repLevel.label}
-                        </span>
-                        <span className="text-lg font-medium text-gray-300">
-                          {reputation.toLocaleString()} pts
-                        </span>
-                      </div>
-                      <div className="h-4 bg-white/10 rounded-full overflow-hidden mb-2">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${repLevel.progress}%`,
-                            backgroundColor: repLevel.textColor
-                          }}
-                        />
-                      </div>
-                      {repLevel.nextLevel ? (
-                        <p className="text-xs text-gray-400 text-center">
-                          {repLevel.pointsToNext.toLocaleString()} points to {repLevel.nextLevel}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-yellow-300 text-center font-medium">
-                          Maximum reputation achieved!
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-3 group-hover:text-gray-400 transition-colors">
-                        Click to view all reputation ranks
-                      </p>
-                    </>
-                  );
-                })()}
               </div>
 
-              {/* Stats Summary */}
-              <div className="glass rounded-xl p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Your Stats</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-white/5 rounded-xl">
-                    <p className="text-2xl font-bold text-purple-400">{userStats.tasksCompleted}</p>
-                    <p className="text-xs text-gray-500">Tasks Completed</p>
+              {/* Reputation - Compact */}
+              <div
+                className="glass rounded-xl p-4 cursor-pointer hover:bg-white/5 transition-colors group relative"
+                onClick={() => setShowReputationModal(true)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-base font-bold ${repLevel.color}`}>{repLevel.label}</span>
+                  <span className="text-sm text-gray-400">{(userProfile?.reputation ?? 3000).toLocaleString()} pts</span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-1">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${repLevel.progress}%`, backgroundColor: repLevel.textColor }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    {repLevel.nextLevel ? `${repLevel.pointsToNext.toLocaleString()} to ${repLevel.nextLevel}` : 'Max reputation!'}
+                  </p>
+                  <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-400 transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2" />
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                    <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="bold" fill="currentColor">i</text>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Stats - Compact Grid */}
+              <div className="glass rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Stats</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center p-2 bg-white/5 rounded-lg">
+                    <p className="text-xl font-bold text-purple-400">{userStats.tasksCompleted}</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Tasks Done</p>
                   </div>
-                  <div className="text-center p-3 bg-white/5 rounded-xl">
-                    <p className="text-2xl font-bold text-blue-400">{userStats.tasksCreated}</p>
-                    <p className="text-xs text-gray-500">Tasks Created</p>
+                  <div className="text-center p-2 bg-white/5 rounded-lg">
+                    <p className="text-xl font-bold text-blue-400">{userStats.tasksCreated}</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Created</p>
                   </div>
-                  <div className="text-center p-3 bg-white/5 rounded-xl">
-                    <p className="text-2xl font-bold text-green-400">{userStats.projectsCreated}</p>
-                    <p className="text-xs text-gray-500">Projects</p>
+                  <div className="text-center p-2 bg-white/5 rounded-lg">
+                    <p className="text-xl font-bold text-green-400">{userStats.projectsCreated}</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Projects</p>
                   </div>
-                  <div className="text-center p-3 bg-white/5 rounded-xl">
-                    <p className="text-2xl font-bold text-pink-400">{userStats.messagesCount}</p>
-                    <p className="text-xs text-gray-500">Messages</p>
+                  <div className="text-center p-2 bg-white/5 rounded-lg">
+                    <p className="text-xl font-bold text-pink-400">{userStats.messagesCount}</p>
+                    <p className="text-[10px] text-gray-500 uppercase">Messages</p>
                   </div>
                 </div>
-                <div className="mt-4 p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl text-center">
-                  <p className="text-3xl font-bold text-white">{userStats.totalPoints.toLocaleString()}</p>
-                  <p className="text-sm text-gray-400">Total Points Earned</p>
+              </div>
+
+              {/* How to Earn - Compact */}
+              <div className="glass rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-2">Earn Points</h3>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-gray-400">Complete task</span><span className="text-purple-400">+25</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Create task</span><span className="text-blue-400">+5</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Create project</span><span className="text-green-400">+50</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Send message</span><span className="text-pink-400">+1</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Milestone</span><span className="text-cyan-400">+15</span></div>
                 </div>
               </div>
             </>
@@ -471,12 +450,20 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Reputation Modal */}
       <ReputationModal
         isOpen={showReputationModal}
         onClose={() => setShowReputationModal(false)}
         currentReputation={userProfile?.reputation ?? 3000}
       />
+
+      {userStats && (
+        <RankModal
+          isOpen={showRankModal}
+          onClose={() => setShowRankModal(false)}
+          currentRank={userStats.rank}
+          totalPoints={userStats.totalPoints}
+        />
+      )}
     </div>
   );
 }

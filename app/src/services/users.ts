@@ -30,10 +30,22 @@ export function subscribeToAllUsers(
 
 export async function updateUserProfile(
   userId: string,
-  data: Partial<Pick<User, 'avatarUrl' | 'nameColor' | 'title' | 'quickActions'>>
+  data: Partial<Pick<User, 'avatarUrl' | 'nameColor' | 'title' | 'quickActions' | 'bannerId'>>
 ): Promise<void> {
   const docRef = doc(db, 'users', userId);
   await updateDoc(docRef, data);
+}
+
+// Add unlocked banners to user's collection (persisted forever)
+export async function addUnlockedBanners(
+  userId: string,
+  bannerIds: string[]
+): Promise<void> {
+  if (bannerIds.length === 0) return;
+  const docRef = doc(db, 'users', userId);
+  await updateDoc(docRef, {
+    unlockedBanners: arrayUnion(...bannerIds),
+  });
 }
 
 // Update user's quick actions

@@ -4,14 +4,24 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import StatusBar from '../dashboard/StatusBar';
 import KeyboardShortcutsModal from '../ui/KeyboardShortcutsModal';
+import CommandPalette from '../ui/CommandPalette';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useNotificationSound } from '../../hooks/useNotificationSound';
+import { useBannerUnlockTracker } from '../../hooks/useBannerUnlocks';
 import { useAuth } from '../../contexts/AuthContext';
+import { subscribeToProjects } from '../../services/projects';
+import { subscribeToAllUsers } from '../../services/users';
+import { subscribeToUserTasks } from '../../services/tasks';
+import type { Project, User, Task } from '../../types';
 
 export default function Layout() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts();
@@ -19,8 +29,39 @@ export default function Layout() {
   // Initialize notification sound listener
   useNotificationSound(currentUser?.uid);
 
-  // Show shortcuts on ? key
-  const handleShowShortcuts = useCallback((e: KeyboardEvent) => {
+  // Track and persist banner unlocks
+  useBannerUnlockTracker();
+
+  // Subscribe to data for command palette
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const isAdmin = userProfile?.email === 'rorie@builtbybrilliance.com';
+
+    const unsubProjects = subscribeToProjects(setProjects, {
+      userId: currentUser.uid,
+      isAdmin,
+    });
+    const unsubUsers = subscribeToAllUsers(setUsers);
+    const unsubTasks = subscribeToUserTasks(currentUser.uid, setTasks);
+
+    return () => {
+      unsubProjects();
+      unsubUsers();
+      unsubTasks();
+    };
+  }, [currentUser, userProfile?.email]);
+
+  // Show shortcuts on ? key, command palette on Ctrl+K
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Command palette: Ctrl+K or Cmd+K
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      setShowCommandPalette(true);
+      return;
+    }
+
+    // Shortcuts modal: ? key
     if (
       e.key === '?' &&
       !(e.target instanceof HTMLInputElement) &&
@@ -31,9 +72,9 @@ export default function Layout() {
   }, []);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleShowShortcuts);
-    return () => window.removeEventListener('keydown', handleShowShortcuts);
-  }, [handleShowShortcuts]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div className="flex h-screen layout-bg">
@@ -66,6 +107,15 @@ export default function Layout() {
       <KeyboardShortcutsModal
         isOpen={showShortcuts}
         onClose={() => setShowShortcuts(false)}
+      />
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        projects={projects}
+        users={users}
+        tasks={tasks}
       />
     </div>
   );

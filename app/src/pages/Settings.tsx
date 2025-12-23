@@ -15,7 +15,7 @@ import {
   type VoiceMode,
 } from '../services/callSettings';
 
-type SettingsTab = 'shortcuts' | 'appearance' | 'calls' | 'account';
+type SettingsTab = 'appearance' | 'accessibility' | 'calls' | 'chat' | 'notifications' | 'shortcuts' | 'language' | 'account';
 
 const shortcutCategories = [
   {
@@ -57,12 +57,25 @@ const shortcutCategories = [
 export default function Settings() {
   const { currentUser, userProfile } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('shortcuts');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const userStats = useUserRank(currentUser?.uid);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('voice-activated');
   const [pushToTalkKey, setPushToTalkKey] = useState('Space');
   const [isRecordingKey, setIsRecordingKey] = useState(false);
+
+  // Accessibility settings
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  // Chat settings
+  const [showTimestamps, setShowTimestamps] = useState(true);
+  const [compactMode, setCompactMode] = useState(false);
+  const [enterToSend, setEnterToSend] = useState(true);
+
+  // Language & Time settings
+  const [dateFormat, setDateFormat] = useState<'mdy' | 'dmy' | 'ymd'>('mdy');
+  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
 
   // Load preferences on mount
   useEffect(() => {
@@ -85,15 +98,6 @@ export default function Settings() {
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     {
-      id: 'shortcuts',
-      label: 'Keyboard Shortcuts',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-        </svg>
-      ),
-    },
-    {
       id: 'appearance',
       label: 'Appearance',
       icon: (
@@ -103,11 +107,56 @@ export default function Settings() {
       ),
     },
     {
-      id: 'calls',
-      label: 'Calls',
+      id: 'accessibility',
+      label: 'Accessibility',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'calls',
+      label: 'Voice & Video',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'chat',
+      label: 'Chat',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      ),
+    },
+    {
+      id: 'shortcuts',
+      label: 'Keybinds',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+      ),
+    },
+    {
+      id: 'language',
+      label: 'Language & Time',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
     },
@@ -228,8 +277,84 @@ export default function Settings() {
 
                 <div className="pt-4 border-t border-white/10">
                   <p className="text-gray-400 text-sm">
-                    More appearance options coming soon: custom accent colors, compact mode, and font size.
+                    More appearance options coming soon: custom accent colors and themes.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'accessibility' && (
+            <div className="space-y-6">
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Text Size</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <p className="text-gray-400 text-sm mb-4">
+                    Adjust the text size across the application.
+                  </p>
+                  <div className="flex gap-3">
+                    {(['small', 'medium', 'large'] as const).map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => setFontSize(size)}
+                        className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                          fontSize === size
+                            ? 'border-purple-500 bg-purple-500/10'
+                            : 'border-white/10 hover:border-white/20 bg-white/5'
+                        }`}
+                      >
+                        <span className={`text-white font-medium ${
+                          size === 'small' ? 'text-sm' : size === 'large' ? 'text-lg' : 'text-base'
+                        }`}>
+                          {size.charAt(0).toUpperCase() + size.slice(1)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Motion</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">Reduce Motion</p>
+                      <p className="text-gray-400 text-sm">Minimize animations throughout the app</p>
+                    </div>
+                    <button
+                      onClick={() => setReduceMotion(!reduceMotion)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        reduceMotion ? 'bg-purple-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${
+                          reduceMotion ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">Accessibility</h4>
+                    <p className="text-gray-400 text-sm">
+                      These settings help make TeamHub more comfortable to use. Changes are saved automatically.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -387,6 +512,253 @@ export default function Settings() {
             </div>
           )}
 
+          {activeTab === 'chat' && (
+            <div className="space-y-6">
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Message Display</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">Show Timestamps</p>
+                      <p className="text-gray-400 text-sm">Display time next to each message</p>
+                    </div>
+                    <button
+                      onClick={() => setShowTimestamps(!showTimestamps)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        showTimestamps ? 'bg-purple-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${
+                          showTimestamps ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <p className="text-white font-medium">Compact Mode</p>
+                      <p className="text-gray-400 text-sm">Reduce spacing between messages</p>
+                    </div>
+                    <button
+                      onClick={() => setCompactMode(!compactMode)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        compactMode ? 'bg-purple-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${
+                          compactMode ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Input Behavior</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">Enter to Send</p>
+                      <p className="text-gray-400 text-sm">Press Enter to send messages (Shift+Enter for new line)</p>
+                    </div>
+                    <button
+                      onClick={() => setEnterToSend(!enterToSend)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        enterToSend ? 'bg-purple-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${
+                          enterToSend ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'notifications' && (
+            <div className="space-y-6">
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Sound</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">Notification Sound</p>
+                      <p className="text-gray-400 text-sm">Play a sound when you receive notifications</p>
+                    </div>
+                    <button
+                      onClick={toggleNotificationSound}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        soundEnabled ? 'bg-purple-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${
+                          soundEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <p className="text-white font-medium">Test Sound</p>
+                      <p className="text-gray-400 text-sm">Preview the notification sound</p>
+                    </div>
+                    <button
+                      onClick={previewNotificationSound}
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                      Play
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">What You'll Be Notified About</h3>
+                </div>
+                <div className="p-5">
+                  <ul className="text-gray-400 text-sm space-y-2">
+                    <li className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Task assignments
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      @mentions in chat
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Project updates
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Incoming calls
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'language' && (
+            <div className="space-y-6">
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Date Format</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <p className="text-gray-400 text-sm mb-4">
+                    Choose how dates are displayed throughout the app.
+                  </p>
+                  <div className="space-y-2">
+                    {([
+                      { id: 'mdy', label: 'MM/DD/YYYY', example: '12/23/2025' },
+                      { id: 'dmy', label: 'DD/MM/YYYY', example: '23/12/2025' },
+                      { id: 'ymd', label: 'YYYY-MM-DD', example: '2025-12-23' },
+                    ] as const).map((format) => (
+                      <button
+                        key={format.id}
+                        onClick={() => setDateFormat(format.id)}
+                        className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                          dateFormat === format.id
+                            ? 'border-purple-500 bg-purple-500/10'
+                            : 'border-white/10 hover:border-white/20 bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-white font-medium">{format.label}</p>
+                            <p className="text-gray-400 text-sm">{format.example}</p>
+                          </div>
+                          {dateFormat === format.id && (
+                            <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">Time Format</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setTimeFormat('12h')}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                        timeFormat === '12h'
+                          ? 'border-purple-500 bg-purple-500/10'
+                          : 'border-white/10 hover:border-white/20 bg-white/5'
+                      }`}
+                    >
+                      <p className="text-white font-medium">12-Hour</p>
+                      <p className="text-gray-400 text-sm">3:30 PM</p>
+                    </button>
+                    <button
+                      onClick={() => setTimeFormat('24h')}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                        timeFormat === '24h'
+                          ? 'border-purple-500 bg-purple-500/10'
+                          : 'border-white/10 hover:border-white/20 bg-white/5'
+                      }`}
+                    >
+                      <p className="text-white font-medium">24-Hour</p>
+                      <p className="text-gray-400 text-sm">15:30</p>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/20 to-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">Timezone</h4>
+                    <p className="text-gray-400 text-sm">
+                      Your timezone is automatically detected from your browser settings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'account' && (
             <div className="space-y-6">
               {/* Rank Card */}
@@ -473,56 +845,6 @@ export default function Settings() {
                   <p className="text-gray-500 text-sm mt-4">
                     Profile editing coming soon.
                   </p>
-                </div>
-              </div>
-
-              <div className="glass rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/10">
-                  <h3 className="text-lg font-semibold text-white">Notifications</h3>
-                </div>
-                <div className="p-5 space-y-4">
-                  {/* Sound Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white font-medium">Notification Sound</p>
-                      <p className="text-gray-400 text-sm">Play a sound when you receive notifications</p>
-                    </div>
-                    <button
-                      onClick={toggleNotificationSound}
-                      className={`relative w-14 h-8 rounded-full transition-colors ${
-                        soundEnabled ? 'bg-purple-600' : 'bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${
-                          soundEnabled ? 'translate-x-6' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Preview Sound Button */}
-                  <div className="flex items-center justify-between pt-2">
-                    <div>
-                      <p className="text-white font-medium">Test Sound</p>
-                      <p className="text-gray-400 text-sm">Preview the notification sound</p>
-                    </div>
-                    <button
-                      onClick={previewNotificationSound}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                      </svg>
-                      Play
-                    </button>
-                  </div>
-
-                  <div className="border-t border-white/10 pt-4 mt-4">
-                    <p className="text-xs text-gray-500">
-                      You'll receive notifications for task assignments, @mentions, and project updates.
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>

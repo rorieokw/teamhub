@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { signOut } from '../../services/auth';
 import { subscribeToUserInvites, acceptInvite, declineInvite } from '../../services/invites';
 import { subscribeToNotifications, markAsRead, markAllAsRead } from '../../services/notifications';
-import SearchModal from '../search/SearchModal';
 import QuickChatPopup from '../chat/QuickChatPopup';
 import type { ProjectInvite, Notification } from '../../types';
 
@@ -22,21 +21,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [invites, setInvites] = useState<ProjectInvite[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [processingInvite, setProcessingInvite] = useState<string | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
   const [showQuickChat, setShowQuickChat] = useState(false);
-
-  // Keyboard shortcut for search (Ctrl/Cmd + K)
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-      e.preventDefault();
-      setShowSearch(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
 
   useEffect(() => {
     if (!userProfile?.email) return;
@@ -97,6 +82,72 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const unreadOtherNotifications = otherNotifications.filter((n) => !n.read);
   const totalUnread = invites.length + unreadOtherNotifications.length;
 
+  // Get icon for notification type
+  function getNotificationIcon(type: Notification['type']): JSX.Element {
+    const iconClass = "w-5 h-5 flex-shrink-0";
+
+    switch (type) {
+      case 'mention':
+        return (
+          <span className={`${iconClass} flex items-center justify-center text-blue-400 font-bold text-sm`}>@</span>
+        );
+      case 'chess-challenge':
+        return (
+          <svg className={`${iconClass} text-amber-400`} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 22H5v-2h14v2M17.16 8.26A8.94 8.94 0 0 1 21 15c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2 0-3.25 1.5-6.17 3.84-8.26A4.97 4.97 0 0 0 7 6c0-2.21 1.79-4 4-4h2c2.21 0 4 1.79 4 4 0 .71-.21 1.39-.58 1.97l-.26.29M12 4c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        );
+      case 'coinflip-challenge':
+        return (
+          <svg className={`${iconClass} text-yellow-400`} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
+          </svg>
+        );
+      case 'task-assigned':
+        return (
+          <svg className={`${iconClass} text-green-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        );
+      case 'comment':
+        return (
+          <svg className={`${iconClass} text-cyan-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+          </svg>
+        );
+      case 'reaction':
+        return (
+          <svg className={`${iconClass} text-pink-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        );
+      case 'poll-closed':
+        return (
+          <svg className={`${iconClass} text-indigo-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        );
+      case 'project-update':
+        return (
+          <svg className={`${iconClass} text-orange-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+        );
+      case 'new-user-signup':
+        return (
+          <svg className={`${iconClass} text-emerald-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className={`${iconClass} text-gray-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        );
+    }
+  }
+
   // Get the correct URL for a notification based on its type
   function getNotificationUrl(notification: Notification): string {
     const data = notification.data as Record<string, string> | undefined;
@@ -121,6 +172,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
       case 'new-user-signup':
         // Navigate to admin panel security tab
         return '/admin';
+      case 'chess-challenge':
+      case 'coinflip-challenge':
+        // Navigate to dashboard where games are displayed
+        return '/dashboard';
       default:
         return '/';
     }
@@ -142,7 +197,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
         {/* Search Bar */}
         <div className="flex-1 max-w-md">
           <button
-            onClick={() => setShowSearch(true)}
+            onClick={() => {
+              // Dispatch Ctrl+K event to open command palette
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+            }}
             className="w-full px-4 py-2 pl-10 bg-white/5 border border-white/10 rounded-full text-gray-500 text-left text-sm hover:bg-white/10 hover:border-white/20 transition-colors relative"
           >
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -248,10 +306,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          {!notification.read && (
-                            <span className="w-2 h-2 bg-purple-500 rounded-full mt-1.5 flex-shrink-0"></span>
-                          )}
-                          <div className={notification.read ? 'ml-5' : ''}>
+                          {/* Notification type icon */}
+                          <div className="relative flex-shrink-0">
+                            {getNotificationIcon(notification.type)}
+                            {!notification.read && (
+                              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-purple-500 rounded-full"></span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
                             <p className="text-white text-sm font-medium">
                               {notification.title}
                             </p>
@@ -266,6 +328,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                               {notification.type === 'comment' && 'Go to Tasks'}
                               {notification.type === 'project-update' && 'Go to Project'}
                               {notification.type === 'new-user-signup' && 'Go to Admin Panel'}
+                              {notification.type === 'chess-challenge' && 'Go to Dashboard'}
+                              {notification.type === 'coinflip-challenge' && 'Go to Dashboard'}
                             </p>
                           </div>
                         </div>
@@ -410,9 +474,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
           )}
         </div>
       </div>
-
-      {/* Search Modal */}
-      <SearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />
 
       {/* Quick Chat Popup */}
       <QuickChatPopup isOpen={showQuickChat} onClose={() => setShowQuickChat(false)} />

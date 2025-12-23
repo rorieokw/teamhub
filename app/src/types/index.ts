@@ -18,6 +18,8 @@ export interface User {
   reputation?: number; // 0-100, starts at 100
   quickActions?: string[]; // User's customized quick action IDs
   approvalStatus?: ApprovalStatus; // For whitelist mode
+  bannerId?: string; // Currently selected profile banner
+  unlockedBanners?: string[]; // Persisted unlocked banner IDs
   createdAt: Timestamp;
 }
 
