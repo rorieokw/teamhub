@@ -42,9 +42,10 @@ export function subscribeToProjects(
 
     // Non-admins can only see projects they created or are members of
     if (!options?.isAdmin && options?.userId) {
+      const userId = options.userId;
       projects = projects.filter(p =>
-        p.createdBy === options.userId ||
-        p.members?.includes(options.userId)
+        p.createdBy === userId ||
+        p.members?.includes(userId)
       );
     }
 

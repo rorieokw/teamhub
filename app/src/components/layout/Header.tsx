@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -83,7 +84,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const totalUnread = invites.length + unreadOtherNotifications.length;
 
   // Get icon for notification type
-  function getNotificationIcon(type: Notification['type']): JSX.Element {
+  function getNotificationIcon(type: Notification['type']): ReactNode {
     const iconClass = "w-5 h-5 flex-shrink-0";
 
     switch (type) {

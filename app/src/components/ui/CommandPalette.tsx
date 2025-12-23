@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Project, User, Task } from '../../types';
 
@@ -15,7 +16,7 @@ interface CommandItem {
   type: 'page' | 'project' | 'task' | 'user' | 'action';
   title: string;
   subtitle?: string;
-  icon: JSX.Element;
+  icon: ReactNode;
   action: () => void;
 }
 
