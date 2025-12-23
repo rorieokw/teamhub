@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,8 +8,8 @@ import {
   sendMessage,
   getDMChannelId,
 } from '../../services/messages';
-import { notifyDirectMessage } from '../../services/notifications';
-import type { MessageWithReactions, User } from '../../types';
+import { notifyDirectMessage, subscribeToNotifications, markAsRead } from '../../services/notifications';
+import type { MessageWithReactions, User, Notification } from '../../types';
 
 interface QuickChatPopupProps {
   isOpen: boolean;
@@ -24,6 +24,7 @@ export default function QuickChatPopup({ isOpen, onClose }: QuickChatPopupProps)
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dmNotifications, setDmNotifications] = useState<Notification[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +39,19 @@ export default function QuickChatPopup({ isOpen, onClose }: QuickChatPopupProps)
 
     return () => unsubscribe();
   }, [isOpen, currentUser?.uid]);
+
+  // Subscribe to DM notifications to track unread messages
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const unsubscribe = subscribeToNotifications(currentUser.uid, (notifications) => {
+      // Filter only unread DM notifications
+      const unreadDMs = notifications.filter((n) => n.type === 'direct-message' && !n.read);
+      setDmNotifications(unreadDMs);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
 
   // Subscribe to messages when a user is selected
   useEffect(() => {
@@ -98,9 +112,63 @@ export default function QuickChatPopup({ isOpen, onClose }: QuickChatPopupProps)
     });
   }
 
-  const filteredUsers = users.filter((user) =>
-    user.displayName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Helper to get unread DM notifications from a specific user
+  const getUnreadDMsFromUser = (userId: string): Notification[] => {
+    return dmNotifications.filter((n) => {
+      const data = n.data as Record<string, string> | undefined;
+      // Check if the channelId contains this user's ID (DM channel format: dm_id1_id2)
+      const channelId = data?.channelId || '';
+      return channelId.includes(userId);
+    });
+  };
+
+  // Check if a user has unread DMs
+  const hasUnreadDM = (userId: string): boolean => {
+    return getUnreadDMsFromUser(userId).length > 0;
+  };
+
+  // Get unread count from a specific user
+  const getUnreadCount = (userId: string): number => {
+    return getUnreadDMsFromUser(userId).length;
+  };
+
+  // Handle selecting a user - also marks their DM notifications as read
+  const handleSelectUser = async (user: User) => {
+    setSelectedUser(user);
+
+    // Mark all DM notifications from this user as read
+    const unreadFromUser = getUnreadDMsFromUser(user.id);
+    for (const notification of unreadFromUser) {
+      await markAsRead(notification.id);
+    }
+  };
+
+  // Filter and sort users - users with unread messages first, sorted by most recent notification
+  const filteredUsers = useMemo(() => {
+    const filtered = users.filter((user) =>
+      user.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort: users with unread DMs first, then alphabetically
+    return filtered.sort((a, b) => {
+      const aUnread = hasUnreadDM(a.id);
+      const bUnread = hasUnreadDM(b.id);
+
+      if (aUnread && !bUnread) return -1;
+      if (!aUnread && bUnread) return 1;
+
+      // If both have unreads, sort by notification time (most recent first)
+      if (aUnread && bUnread) {
+        const aNotifs = getUnreadDMsFromUser(a.id);
+        const bNotifs = getUnreadDMsFromUser(b.id);
+        const aTime = aNotifs[0]?.createdAt?.toMillis?.() || 0;
+        const bTime = bNotifs[0]?.createdAt?.toMillis?.() || 0;
+        return bTime - aTime;
+      }
+
+      return a.displayName.localeCompare(b.displayName);
+    });
+  }, [users, searchQuery, dmNotifications]);
 
   if (!isOpen) return null;
 
@@ -236,36 +304,55 @@ export default function QuickChatPopup({ isOpen, onClose }: QuickChatPopupProps)
               </div>
             ) : (
               <div className="space-y-1">
-                {filteredUsers.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => setSelectedUser(user)}
-                    className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-colors text-left"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium text-white flex-shrink-0"
-                      style={{
-                        background: user.nameColor
-                          ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
-                          : 'linear-gradient(135deg, #8b5cf6, #d946ef)',
-                      }}
+                {filteredUsers.map((user) => {
+                  const unreadCount = getUnreadCount(user.id);
+                  const hasUnread = unreadCount > 0;
+
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => handleSelectUser(user)}
+                      className={`w-full flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-colors text-left ${
+                        hasUnread ? 'bg-purple-500/10' : ''
+                      }`}
                     >
-                      {user.avatarUrl?.startsWith('http') ? (
-                        <img src={user.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
-                      ) : user.avatarUrl ? (
-                        user.avatarUrl
-                      ) : (
-                        user.displayName.charAt(0).toUpperCase()
+                      <div className="relative">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium text-white flex-shrink-0"
+                          style={{
+                            background: user.nameColor
+                              ? `linear-gradient(135deg, ${user.nameColor}, ${user.nameColor}99)`
+                              : 'linear-gradient(135deg, #8b5cf6, #d946ef)',
+                          }}
+                        >
+                          {user.avatarUrl?.startsWith('http') ? (
+                            <img src={user.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                          ) : user.avatarUrl ? (
+                            user.avatarUrl
+                          ) : (
+                            user.displayName.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        {hasUnread && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-500 rounded-full text-white text-xs flex items-center justify-center font-medium">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${hasUnread ? 'text-white' : 'text-white'}`}>
+                          {user.displayName}
+                        </p>
+                        {user.title && (
+                          <p className="text-gray-500 text-xs truncate">{user.title}</p>
+                        )}
+                      </div>
+                      {hasUnread && (
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse flex-shrink-0"></div>
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{user.displayName}</p>
-                      {user.title && (
-                        <p className="text-gray-500 text-xs truncate">{user.title}</p>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

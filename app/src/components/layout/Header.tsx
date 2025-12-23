@@ -89,8 +89,13 @@ export default function Header({ onMenuClick }: HeaderProps) {
     await markAllAsRead(currentUser.uid);
   }
 
-  const unreadNotifications = notifications.filter((n) => !n.read);
-  const totalUnread = invites.length + unreadNotifications.length;
+  // Separate DM notifications from other notifications
+  const dmNotifications = notifications.filter((n) => n.type === 'direct-message');
+  const otherNotifications = notifications.filter((n) => n.type !== 'direct-message');
+
+  const unreadDMs = dmNotifications.filter((n) => !n.read);
+  const unreadOtherNotifications = otherNotifications.filter((n) => !n.read);
+  const totalUnread = invites.length + unreadOtherNotifications.length;
 
   // Get the correct URL for a notification based on its type
   function getNotificationUrl(notification: Notification): string {
@@ -175,7 +180,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <div className="absolute right-0 mt-2 w-96 glass rounded-xl shadow-2xl z-[100] animate-scale-in overflow-hidden">
               <div className="p-4 border-b border-white/10 flex items-center justify-between">
                 <p className="text-white font-semibold">Notifications</p>
-                {unreadNotifications.length > 0 && (
+                {unreadOtherNotifications.length > 0 && (
                   <button
                     onClick={handleMarkAllAsRead}
                     className="text-xs text-purple-400 hover:text-purple-300"
@@ -220,15 +225,15 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   </div>
                 )}
 
-                {/* Task Notifications Section */}
-                {notifications.length > 0 && (
+                {/* Task Notifications Section (excludes DMs - those show on Quick Chat) */}
+                {otherNotifications.length > 0 && (
                   <div>
                     {invites.length > 0 && (
                       <div className="px-4 py-2 bg-white/5">
                         <p className="text-xs text-gray-400 uppercase font-medium">Notifications</p>
                       </div>
                     )}
-                    {notifications.slice(0, 10).map((notification) => (
+                    {otherNotifications.slice(0, 10).map((notification) => (
                       <Link
                         key={notification.id}
                         to={getNotificationUrl(notification)}
@@ -255,7 +260,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
                             </p>
                             <p className="text-xs text-purple-400/70 mt-1">
                               {notification.type === 'mention' && 'Go to Chat'}
-                              {notification.type === 'direct-message' && 'Go to Chat'}
                               {notification.type === 'reaction' && 'Go to Chat'}
                               {notification.type === 'poll-closed' && 'Go to Chat'}
                               {notification.type === 'task-assigned' && 'Go to Tasks'}
@@ -270,7 +274,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   </div>
                 )}
 
-                {invites.length === 0 && notifications.length === 0 && (
+                {invites.length === 0 && otherNotifications.length === 0 && (
                   <div className="p-8 text-center text-gray-400">
                     <p className="text-2xl mb-2">🔔</p>
                     <p>No notifications</p>
@@ -288,7 +292,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             setShowNotifications(false);
             setShowUserMenu(false);
           }}
-          className={`p-2 transition-colors rounded-lg ${
+          className={`p-2 transition-colors rounded-lg relative ${
             showQuickChat
               ? 'text-purple-400 bg-purple-500/20'
               : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -298,6 +302,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
+          {unreadDMs.length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-purple-500 rounded-full text-white text-xs flex items-center justify-center font-medium">
+              {unreadDMs.length > 9 ? '9+' : unreadDMs.length}
+            </span>
+          )}
         </button>
 
         {/* Theme Toggle */}
