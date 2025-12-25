@@ -19,6 +19,7 @@ import Documents from './pages/Documents';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import AdminPanel from './pages/AdminPanel';
+import Games from './pages/Games';
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/games" element={<Games />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

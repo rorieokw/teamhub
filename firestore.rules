@@ -331,5 +331,53 @@ service cloud.firestore {
         allow read, write: if request.auth != null;
       }
     }
+
+    // Poker games collection
+    match /pokerGames/{gameId} {
+      // Authenticated users can read all games (for lobby)
+      allow read: if request.auth != null;
+
+      // Authenticated users can create games
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.createdBy;
+
+      // Authenticated users can update games (for joining, leaving, playing)
+      allow update: if request.auth != null;
+
+      // Anyone can delete poker games (for cleanup)
+      allow delete: if request.auth != null;
+    }
+
+    // Blackjack games collection
+    match /blackjackGames/{gameId} {
+      // Authenticated users can read all games (for lobby)
+      allow read: if request.auth != null;
+
+      // Authenticated users can create games
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.createdBy;
+
+      // Authenticated users can update games (for joining, leaving, playing)
+      allow update: if request.auth != null;
+
+      // Anyone can delete blackjack games (for cleanup)
+      allow delete: if request.auth != null;
+    }
+
+    // Mahjong games collection
+    match /mahjongGames/{gameId} {
+      // Authenticated users can read all games (for lobby)
+      allow read: if request.auth != null;
+
+      // Authenticated users can create games
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.createdBy;
+
+      // Authenticated users can update games (for joining, leaving, playing)
+      allow update: if request.auth != null;
+
+      // Anyone can delete mahjong games (for cleanup)
+      allow delete: if request.auth != null;
+    }
   }
 }

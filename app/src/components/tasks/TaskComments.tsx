@@ -40,20 +40,23 @@ export default function TaskComments({ task, projectName }: TaskCommentsProps) {
         task.id
       );
 
-      // Notify task assignee if it's not the commenter
-      if (task.assignedTo !== currentUser.uid) {
-        await notifyComment(
-          task.assignedTo,
-          userProfile.displayName,
-          task.title,
-          newComment.trim(),
-          task.id,
-          task.projectId
-        );
+      // Notify task assignees if they're not the commenter
+      const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo].filter(Boolean);
+      for (const assigneeId of assignees) {
+        if (assigneeId !== currentUser.uid) {
+          await notifyComment(
+            assigneeId,
+            userProfile.displayName,
+            task.title,
+            newComment.trim(),
+            task.id,
+            task.projectId
+          );
+        }
       }
 
-      // Also notify task creator if different from assignee and commenter
-      if (task.createdBy !== currentUser.uid && task.createdBy !== task.assignedTo) {
+      // Also notify task creator if different from assignees and commenter
+      if (task.createdBy !== currentUser.uid && !assignees.includes(task.createdBy)) {
         await notifyComment(
           task.createdBy,
           userProfile.displayName,

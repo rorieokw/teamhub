@@ -14,8 +14,9 @@ import {
   saveCallSettings,
   type VoiceMode,
 } from '../services/callSettings';
+import { APP_VERSION, BUILD_DATE, CHANGELOG } from '../version';
 
-type SettingsTab = 'appearance' | 'accessibility' | 'calls' | 'chat' | 'notifications' | 'shortcuts' | 'language' | 'account';
+type SettingsTab = 'general' | 'appearance' | 'accessibility' | 'calls' | 'chat' | 'notifications' | 'shortcuts' | 'language' | 'account';
 
 const shortcutCategories = [
   {
@@ -57,7 +58,7 @@ const shortcutCategories = [
 export default function Settings() {
   const { currentUser, userProfile } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const userStats = useUserRank(currentUser?.uid);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('voice-activated');
@@ -97,6 +98,16 @@ export default function Settings() {
   };
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
+    {
+      id: 'general',
+      label: 'General',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
     {
       id: 'appearance',
       label: 'Appearance',
@@ -243,6 +254,101 @@ export default function Settings() {
                     <p className="text-gray-400 text-sm">
                       Press <kbd className="px-1.5 py-0.5 bg-white/10 border border-white/20 rounded text-xs mx-1">?</kbd>
                       anywhere in the app to quickly view keyboard shortcuts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'general' && (
+            <div className="space-y-6">
+              {/* Version Info */}
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">About TeamHub</h3>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-white">TeamHub</h2>
+                        <p className="text-gray-400 text-sm">Collaborative workspace for teams</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl">
+                        <span className="text-purple-400 font-mono font-bold text-lg">v{APP_VERSION}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-white/5 rounded-xl p-4">
+                      <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Version</p>
+                      <p className="text-white font-mono font-bold">{APP_VERSION}</p>
+                    </div>
+                    <div className="bg-white/5 rounded-xl p-4">
+                      <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Build Date</p>
+                      <p className="text-white font-mono font-bold">{BUILD_DATE}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Check this version on any computer to ensure you're running the latest build</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Changes */}
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">What's New</h3>
+                </div>
+                <div className="p-5">
+                  {CHANGELOG.map((release, i) => (
+                    <div key={release.version} className={i > 0 ? 'mt-6 pt-6 border-t border-white/10' : ''}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="px-2.5 py-1 bg-purple-500/20 text-purple-400 rounded-lg text-sm font-mono font-bold">
+                          v{release.version}
+                        </span>
+                        <span className="text-gray-500 text-sm">{release.date}</span>
+                      </div>
+                      <ul className="space-y-2">
+                        {release.changes.map((change, j) => (
+                          <li key={j} className="flex items-start gap-2 text-gray-300 text-sm">
+                            <svg className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            {change}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Credits */}
+              <div className="glass rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">Built with love</h4>
+                    <p className="text-gray-400 text-sm">
+                      TeamHub is designed for seamless team collaboration. Stay tuned for more features!
                     </p>
                   </div>
                 </div>

@@ -95,6 +95,7 @@ export default function AdminPanel() {
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<User[]>([]);
   const [togglingWhitelist, setTogglingWhitelist] = useState(false);
+  const [togglingGames, setTogglingGames] = useState(false);
   const [approvingLegacy, setApprovingLegacy] = useState(false);
 
   // Redirect if not admin
@@ -310,7 +311,7 @@ export default function AdminPanel() {
         description: newTaskDesc.trim() || undefined,
         status: newTaskStatus,
         priority: newTaskPriority,
-        assignedTo: newTaskAssignee,
+        assignedTo: [newTaskAssignee],
         createdBy: currentUser.uid,
       });
 
@@ -431,6 +432,26 @@ export default function AdminPanel() {
       console.error('Failed to toggle whitelist:', error);
     } finally {
       setTogglingWhitelist(false);
+    }
+  };
+
+  const handleToggleGames = async () => {
+    if (!currentUser) return;
+    setTogglingGames(true);
+    try {
+      const newValue = !(appSettings?.gamesEnabled ?? true);
+      await updateAppSettings({ gamesEnabled: newValue }, currentUser.uid);
+      if (userProfile) {
+        await logAdminAction(
+          newValue ? 'Enabled games tab' : 'Disabled games tab',
+          currentUser.uid,
+          userProfile.displayName
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle games:', error);
+    } finally {
+      setTogglingGames(false);
     }
   };
 
@@ -1155,7 +1176,10 @@ export default function AdminPanel() {
                       </td>
                       <td className="p-3">
                         <span className="text-sm text-gray-400">
-                          {task.assignedTo ? getUserName(task.assignedTo) : 'Unassigned'}
+                          {(() => {
+                            const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo].filter(Boolean);
+                            return assignees.length > 0 ? assignees.map(getUserName).join(', ') : 'Unassigned';
+                          })()}
                         </span>
                       </td>
                       <td className="p-3 text-right">
@@ -1466,6 +1490,51 @@ export default function AdminPanel() {
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                     appSettings?.whitelistEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Games Toggle */}
+          <div className="glass-card rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20">
+                  <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Games Tab</h3>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Toggle the Games tab visibility. Hide it during work hours or enable it for team fun time.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      appSettings?.gamesEnabled ?? true
+                        ? 'bg-pink-500/20 text-pink-400'
+                        : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        appSettings?.gamesEnabled ?? true ? 'bg-pink-400' : 'bg-gray-400'
+                      }`}></span>
+                      {appSettings?.gamesEnabled ?? true ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={handleToggleGames}
+                disabled={togglingGames}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  appSettings?.gamesEnabled ?? true ? 'bg-pink-500' : 'bg-gray-600'
+                } ${togglingGames ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    appSettings?.gamesEnabled ?? true ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>

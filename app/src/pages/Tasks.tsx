@@ -6,11 +6,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAdmin } from '../hooks/useAdmin';
 import { subscribeToProjects } from '../services/projects';
 import {
-  subscribeToAllAccessibleTasks,
+  subscribeToMyTasks,
+  subscribeToAssignedByMe,
   createTask,
   updateTask,
   updateTaskStatus,
-  deleteTask,
+  removeUserFromTask,
 } from '../services/tasks';
 import { getUsersByIds } from '../services/users';
 import { notifyTaskAssigned } from '../services/notifications';
@@ -21,7 +22,8 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 import type { Task, Project, User } from '../types';
 
 type ColumnId = 'todo' | 'in-progress' | 'done';
-type FilterType = 'all' | 'mine' | 'done' | 'pending';
+type FilterType = 'all' | 'done' | 'pending';
+type ViewMode = 'my-tasks' | 'assigned-by-me';
 
 const columnConfig: Record<ColumnId, { title: string; color: string; bgColor: string }> = {
   'todo': { title: 'To Do', color: 'bg-gray-500', bgColor: 'bg-white/10' },
@@ -41,6 +43,9 @@ export default function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [pendingUpdates, setPendingUpdates] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<ViewMode>('my-tasks');
 
   // Get filter from URL or default to 'all'
   const urlFilter = searchParams.get('filter') as FilterType | null;
@@ -48,7 +53,7 @@ export default function Tasks() {
 
   // Update filter when URL changes
   useEffect(() => {
-    if (urlFilter && ['all', 'mine', 'done', 'pending'].includes(urlFilter)) {
+    if (urlFilter && ['all', 'done', 'pending'].includes(urlFilter)) {
       setFilter(urlFilter);
     }
   }, [urlFilter]);
@@ -76,22 +81,41 @@ export default function Tasks() {
     return () => unsubscribe();
   }, [currentUser?.uid, isAdmin]);
 
-  // Subscribe to tasks from user's projects
+  // Subscribe to tasks based on view mode
   useEffect(() => {
-    if (projects.length === 0) {
+    if (!currentUser?.uid || projects.length === 0) {
       setTasks([]);
       setLoading(false);
       return;
     }
 
-    const projectIds = projects.map((p) => p.id);
-    const unsubscribe = subscribeToAllAccessibleTasks(projectIds, (data) => {
-      setTasks(data);
+    setLoading(true);
+    const projectIds = projects.map(p => p.id);
+
+    const subscribeFunc = viewMode === 'my-tasks'
+      ? subscribeToMyTasks
+      : subscribeToAssignedByMe;
+
+    const unsubscribe = subscribeFunc(currentUser.uid, projectIds, (data) => {
+      // Merge with local state to preserve optimistic updates
+      setTasks(prevTasks => {
+        if (pendingUpdates.size === 0) {
+          return data;
+        }
+        // Keep local version of tasks with pending updates
+        return data.map(serverTask => {
+          if (pendingUpdates.has(serverTask.id)) {
+            const localTask = prevTasks.find(t => t.id === serverTask.id);
+            return localTask || serverTask;
+          }
+          return serverTask;
+        });
+      });
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [projects]);
+  }, [currentUser?.uid, projects, pendingUpdates, viewMode]);
 
   // Load all members from all projects
   useEffect(() => {
@@ -109,7 +133,7 @@ export default function Tasks() {
     title: string;
     description: string;
     projectId: string;
-    assignedTo: string;
+    assignedTo: string[];
     priority: Task['priority'];
     status: Task['status'];
     dueDate?: Date;
@@ -133,16 +157,18 @@ export default function Tasks() {
       taskId
     );
 
-    // Send notification if assigning to someone else
-    if (data.assignedTo !== currentUser.uid) {
-      await notifyTaskAssigned(
-        data.assignedTo,
-        data.title,
-        project?.name || 'Unknown Project',
-        userProfile.displayName,
-        taskId,
-        data.projectId
-      );
+    // Send notification to all assignees except the creator
+    for (const assigneeId of data.assignedTo) {
+      if (assigneeId !== currentUser.uid) {
+        await notifyTaskAssigned(
+          assigneeId,
+          data.title,
+          project?.name || 'Unknown Project',
+          userProfile.displayName,
+          taskId,
+          data.projectId
+        );
+      }
     }
   }
 
@@ -150,31 +176,39 @@ export default function Tasks() {
     title: string;
     description: string;
     projectId: string;
-    assignedTo: string;
+    assignedTo: string[];
     priority: Task['priority'];
     status: Task['status'];
     dueDate?: Date;
   }) {
     if (!editingTask || !currentUser || !userProfile) return;
 
-    const wasReassigned = editingTask.assignedTo !== data.assignedTo;
+    // Get previous assignees (handle backwards compatibility)
+    const previousAssignees = Array.isArray(editingTask.assignedTo)
+      ? editingTask.assignedTo
+      : [editingTask.assignedTo].filter(Boolean);
+
+    // Find newly added assignees
+    const newAssignees = data.assignedTo.filter(id => !previousAssignees.includes(id));
 
     await updateTask(editingTask.id, {
       ...data,
       dueDate: data.dueDate ? Timestamp.fromDate(data.dueDate) : undefined,
     });
 
-    // Send notification if reassigned to someone else
-    if (wasReassigned && data.assignedTo !== currentUser.uid) {
-      const project = projects.find((p) => p.id === data.projectId);
-      await notifyTaskAssigned(
-        data.assignedTo,
-        data.title,
-        project?.name || 'Unknown Project',
-        userProfile.displayName,
-        editingTask.id,
-        data.projectId
-      );
+    // Send notification to newly added assignees (except self)
+    const project = projects.find((p) => p.id === data.projectId);
+    for (const assigneeId of newAssignees) {
+      if (assigneeId !== currentUser.uid) {
+        await notifyTaskAssigned(
+          assigneeId,
+          data.title,
+          project?.name || 'Unknown Project',
+          userProfile.displayName,
+          editingTask.id,
+          data.projectId
+        );
+      }
     }
 
     setEditingTask(null);
@@ -197,22 +231,31 @@ export default function Tasks() {
     }
   }
 
-  async function handleDeleteTask() {
-    if (!deletingTask) return;
+  async function handleRemoveTask() {
+    if (!deletingTask || !currentUser?.uid) return;
 
     setDeleteLoading(true);
     try {
-      await deleteTask(deletingTask.id);
+      await removeUserFromTask(deletingTask.id, currentUser.uid);
       setDeletingTask(null);
     } catch (err) {
-      console.error('Failed to delete task:', err);
+      console.error('Failed to remove task:', err);
     } finally {
       setDeleteLoading(false);
     }
   }
 
+  // Check if current user is the only assignee (for delete message)
+  const isOnlyAssignee = (task: Task | null): boolean => {
+    if (!task) return false;
+    const assignees = getAssignees(task);
+    return assignees.length <= 1;
+  };
+
   // Handle drag end
   async function handleDragEnd(result: DropResult) {
+    setDraggingTaskId(null);
+
     const { destination, source, draggableId } = result;
 
     // Dropped outside a valid droppable
@@ -233,15 +276,49 @@ export default function Tasks() {
     // Update the task status
     const newStatus = destination.droppableId as Task['status'];
     if (newStatus !== task.status) {
-      await handleStatusChange(task, newStatus);
+      // Mark this task as having a pending update
+      setPendingUpdates(prev => new Set(prev).add(draggableId));
+
+      // Optimistically update local state immediately
+      setTasks(prevTasks =>
+        prevTasks.map(t =>
+          t.id === draggableId ? { ...t, status: newStatus } : t
+        )
+      );
+
+      // Then update Firebase
+      try {
+        await handleStatusChange(task, newStatus);
+      } catch (err) {
+        console.error('Failed to update task status:', err);
+        // Revert on error
+        setTasks(prevTasks =>
+          prevTasks.map(t =>
+            t.id === draggableId ? { ...t, status: task.status } : t
+          )
+        );
+      } finally {
+        // Remove from pending updates after a short delay to let Firebase sync
+        setTimeout(() => {
+          setPendingUpdates(prev => {
+            const next = new Set(prev);
+            next.delete(draggableId);
+            return next;
+          });
+        }, 1000);
+      }
     }
   }
 
-  // Filter tasks
+  // Helper to normalize assignedTo (backwards compatibility: string -> array)
+  const getAssignees = (task: Task): string[] => {
+    if (Array.isArray(task.assignedTo)) return task.assignedTo;
+    return task.assignedTo ? [task.assignedTo] : [];
+  };
+
+  // Filter tasks (all tasks are already "mine" since we only fetch assigned tasks)
   const filteredTasks = tasks.filter((t) => {
     switch (filter) {
-      case 'mine':
-        return t.assignedTo === currentUser?.uid;
       case 'done':
         return t.status === 'done';
       case 'pending':
@@ -254,7 +331,7 @@ export default function Tasks() {
   const getTasksByStatus = (status: ColumnId) =>
     filteredTasks.filter((t) => t.status === status);
 
-  const getMember = (id: string) => members.find((m) => m.id === id);
+  const getMembers = (ids: string[]) => members.filter((m) => ids.includes(m.id));
   const getProject = (id: string) => projects.find((p) => p.id === id);
 
   if (loading) {
@@ -272,12 +349,38 @@ export default function Tasks() {
     <div className="h-full flex flex-col animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Tasks</h1>
+          <h1 className="text-2xl font-bold text-white">
+            {viewMode === 'my-tasks' ? 'My Tasks' : 'Assigned by Me'}
+          </h1>
           <p className="text-gray-400 text-sm mt-1">
-            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} - Drag to move between columns
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}{' '}
+            {viewMode === 'my-tasks' ? 'assigned to you' : 'you assigned to others'}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex rounded-xl overflow-hidden border border-white/10">
+            <button
+              onClick={() => setViewMode('my-tasks')}
+              className={`px-4 py-2 text-sm font-medium transition-all ${
+                viewMode === 'my-tasks'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              My Tasks
+            </button>
+            <button
+              onClick={() => setViewMode('assigned-by-me')}
+              className={`px-4 py-2 text-sm font-medium transition-all ${
+                viewMode === 'assigned-by-me'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Assigned by Me
+            </button>
+          </div>
           {/* Filter */}
           <select
             value={filter}
@@ -285,7 +388,6 @@ export default function Tasks() {
             className="px-4 py-2.5 glass border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50 bg-transparent"
           >
             <option value="all" className="bg-[#2d2a4a]">All Tasks</option>
-            <option value="mine" className="bg-[#2d2a4a]">My Tasks</option>
             <option value="pending" className="bg-[#2d2a4a]">Pending Tasks</option>
             <option value="done" className="bg-[#2d2a4a]">Completed Tasks</option>
           </select>
@@ -310,14 +412,17 @@ export default function Tasks() {
           <p className="text-gray-400 mb-4">Create a project first to start adding tasks</p>
         </div>
       ) : (
-        <DragDropContext onDragEnd={handleDragEnd}>
+        <DragDropContext
+          onDragStart={(start) => viewMode === 'my-tasks' && setDraggingTaskId(start.draggableId)}
+          onDragEnd={viewMode === 'my-tasks' ? handleDragEnd : () => {}}
+        >
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
             {(['todo', 'in-progress', 'done'] as ColumnId[]).map((columnId) => {
               const config = columnConfig[columnId];
               const columnTasks = getTasksByStatus(columnId);
 
               return (
-                <div key={columnId} className="glass rounded-xl flex flex-col min-h-[400px] overflow-hidden">
+                <div key={columnId} className={`rounded-xl flex flex-col min-h-[400px] ${draggingTaskId ? 'bg-[#1e1b2e] border border-white/10' : 'glass'}`}>
                   <div className="p-4 border-b border-white/10 flex items-center gap-3">
                     <span className={`w-3 h-3 ${config.color} rounded-full shadow-lg`}></span>
                     <h2 className="text-lg font-semibold text-white">{config.title}</h2>
@@ -329,13 +434,13 @@ export default function Tasks() {
                     </span>
                   </div>
 
-                  <Droppable droppableId={columnId}>
+                  <Droppable droppableId={columnId} isDropDisabled={viewMode === 'assigned-by-me'}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={`flex-1 p-3 space-y-3 overflow-y-auto transition-colors ${
-                          snapshot.isDraggingOver ? 'bg-purple-500/10' : ''
+                          snapshot.isDraggingOver && viewMode === 'my-tasks' ? 'bg-purple-500/10' : ''
                         }`}
                       >
                         {columnTasks.length === 0 && !snapshot.isDraggingOver ? (
@@ -351,22 +456,32 @@ export default function Tasks() {
                           </div>
                         ) : (
                           columnTasks.map((task, index) => (
-                            <Draggable key={task.id} draggableId={task.id} index={index}>
-                              {(provided, snapshot) => (
+                            <Draggable
+                              key={task.id}
+                              draggableId={task.id}
+                              index={index}
+                              isDragDisabled={viewMode === 'assigned-by-me'}
+                            >
+                              {(provided) => (
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
                                   {...provided.dragHandleProps}
-                                  style={provided.draggableProps.style}
+                                  style={{
+                                    ...provided.draggableProps.style,
+                                    zIndex: draggingTaskId === task.id ? 9999 : 'auto',
+                                  }}
+                                  className={draggingTaskId === task.id ? 'relative' : ''}
                                 >
                                   <TaskCard
                                     task={task}
-                                    assignee={getMember(task.assignedTo)}
+                                    assignees={getMembers(getAssignees(task))}
                                     project={getProject(task.projectId)}
                                     onEdit={setEditingTask}
-                                    onDelete={setDeletingTask}
-                                    onStatusChange={handleStatusChange}
-                                    isDragging={snapshot.isDragging}
+                                    onDelete={viewMode === 'my-tasks' ? setDeletingTask : undefined}
+                                    onStatusChange={viewMode === 'my-tasks' ? handleStatusChange : undefined}
+                                    isDragging={draggingTaskId === task.id}
+                                    isReadOnly={viewMode === 'assigned-by-me'}
                                   />
                                 </div>
                               )}
@@ -405,14 +520,18 @@ export default function Tasks() {
         title="Edit Task"
       />
 
-      {/* Delete Confirmation */}
+      {/* Delete/Remove Confirmation */}
       <ConfirmModal
         isOpen={!!deletingTask}
         onClose={() => setDeletingTask(null)}
-        onConfirm={handleDeleteTask}
-        title="Delete Task"
-        message={`Are you sure you want to delete "${deletingTask?.title}"? This action cannot be undone.`}
-        confirmText="Delete"
+        onConfirm={handleRemoveTask}
+        title={isOnlyAssignee(deletingTask) ? "Delete Task" : "Remove Task"}
+        message={
+          isOnlyAssignee(deletingTask)
+            ? `Are you sure you want to delete "${deletingTask?.title}"? This action cannot be undone.`
+            : `Are you sure you want to remove "${deletingTask?.title}" from your task list? The task will still be visible to other assignees.`
+        }
+        confirmText={isOnlyAssignee(deletingTask) ? "Delete" : "Remove"}
         confirmStyle="danger"
         loading={deleteLoading}
       />

@@ -232,12 +232,15 @@ export async function checkTaskDeadlines(): Promise<void> {
 
   for (const taskDoc of snapshot.docs) {
     const task = { id: taskDoc.id, ...taskDoc.data() } as Task;
+    const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo].filter(Boolean);
 
-    await decreaseReputation(
-      task.assignedTo,
-      REPUTATION_PENALTIES.MISSED_TASK_DEADLINE,
-      `Missed deadline for task: ${task.title}`
-    );
+    for (const assigneeId of assignees) {
+      await decreaseReputation(
+        assigneeId,
+        REPUTATION_PENALTIES.MISSED_TASK_DEADLINE,
+        `Missed deadline for task: ${task.title}`
+      );
+    }
   }
 }
 

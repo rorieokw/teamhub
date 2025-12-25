@@ -3,7 +3,9 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAdmin } from '../../hooks/useAdmin';
 import { updateQuickActions } from '../../services/users';
+import { subscribeToAppSettings } from '../../services/settings';
 import QuickActionsEditor, { ALL_QUICK_ACTIONS, DEFAULT_QUICK_ACTIONS } from './QuickActionsEditor';
+import type { AppSettings } from '../../types';
 
 // Modern SVG icons as components
 const icons = {
@@ -67,6 +69,15 @@ const icons = {
       <path d="M9 12l2 2 4-4" />
     </svg>
   ),
+  games: (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M6 12h4" />
+      <path d="M8 10v4" />
+      <circle cx="17" cy="10" r="1" />
+      <circle cx="15" cy="12" r="1" />
+    </svg>
+  ),
 };
 
 const navItems = [
@@ -91,7 +102,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showQuickActionsEditor, setShowQuickActionsEditor] = useState(false);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const quickMenuRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to app settings
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSettings(setAppSettings);
+    return () => unsubscribe();
+  }, []);
 
   // Get user's saved quick actions or use defaults
   const userQuickActionIds = userProfile?.quickActions || DEFAULT_QUICK_ACTIONS;
@@ -138,10 +156,18 @@ export default function Sidebar({ onClose }: SidebarProps) {
     }
   };
 
-  // Add admin item if user is admin
-  const allNavItems = isAdmin
-    ? [...navItems, { path: '/admin', label: 'Admin', icon: icons.admin, color: 'from-orange-500 to-red-600' }]
-    : navItems;
+  // Build nav items based on settings and permissions
+  const allNavItems = [
+    ...navItems,
+    // Add games if enabled
+    ...(appSettings?.gamesEnabled ?? true
+      ? [{ path: '/games', label: 'Games', icon: icons.games, color: 'from-pink-500 to-rose-600' }]
+      : []),
+    // Add admin if user is admin
+    ...(isAdmin
+      ? [{ path: '/admin', label: 'Admin', icon: icons.admin, color: 'from-orange-500 to-red-600' }]
+      : []),
+  ];
 
   return (
     <div

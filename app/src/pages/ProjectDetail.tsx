@@ -229,10 +229,11 @@ export default function ProjectDetail() {
     title: string;
     description: string;
     projectId: string;
-    assignedTo: string;
+    assignedTo: string[];
     priority: Task['priority'];
     status: Task['status'];
     dueDate?: Date;
+    blockedBy?: string[];
   }) {
     if (!currentUser || !userProfile || !project) return;
 
@@ -243,15 +244,18 @@ export default function ProjectDetail() {
       createdBy: currentUser.uid,
     });
 
-    if (data.assignedTo !== currentUser.uid) {
-      await notifyTaskAssigned(
-        data.assignedTo,
-        data.title,
-        project.name,
-        userProfile.displayName,
-        taskId,
-        project.id
-      );
+    // Notify all assignees except the creator
+    for (const assigneeId of data.assignedTo) {
+      if (assigneeId !== currentUser.uid) {
+        await notifyTaskAssigned(
+          assigneeId,
+          data.title,
+          project.name,
+          userProfile.displayName,
+          taskId,
+          project.id
+        );
+      }
     }
   }
 
@@ -259,29 +263,39 @@ export default function ProjectDetail() {
     title: string;
     description: string;
     projectId: string;
-    assignedTo: string;
+    assignedTo: string[];
     priority: Task['priority'];
     status: Task['status'];
     dueDate?: Date;
+    blockedBy?: string[];
   }) {
     if (!editingTask || !currentUser || !userProfile || !project) return;
 
-    const wasReassigned = editingTask.assignedTo !== data.assignedTo;
+    const oldAssignees = Array.isArray(editingTask.assignedTo)
+      ? editingTask.assignedTo
+      : [editingTask.assignedTo].filter(Boolean);
+    const newAssignees = data.assignedTo;
+
+    // Find newly added assignees
+    const addedAssignees = newAssignees.filter((id) => !oldAssignees.includes(id));
 
     await updateTask(editingTask.id, {
       ...data,
       dueDate: data.dueDate ? Timestamp.fromDate(data.dueDate) : undefined,
     });
 
-    if (wasReassigned && data.assignedTo !== currentUser.uid) {
-      await notifyTaskAssigned(
-        data.assignedTo,
-        data.title,
-        project.name,
-        userProfile.displayName,
-        editingTask.id,
-        project.id
-      );
+    // Notify newly added assignees
+    for (const assigneeId of addedAssignees) {
+      if (assigneeId !== currentUser.uid) {
+        await notifyTaskAssigned(
+          assigneeId,
+          data.title,
+          project.name,
+          userProfile.displayName,
+          editingTask.id,
+          project.id
+        );
+      }
     }
 
     setEditingTask(null);
@@ -318,6 +332,10 @@ export default function ProjectDetail() {
   }
 
   const getMember = (memberId: string) => members.find((m) => m.id === memberId);
+  const getAssignees = (assignedTo: string | string[]) => {
+    const ids = Array.isArray(assignedTo) ? assignedTo : [assignedTo].filter(Boolean);
+    return ids.map((id) => getMember(id)).filter((m): m is User => !!m);
+  };
   const todoTasks = tasks.filter((t) => t.status === 'todo');
   const inProgressTasks = tasks.filter((t) => t.status === 'in-progress');
   const doneTasks = tasks.filter((t) => t.status === 'done');
@@ -765,7 +783,7 @@ export default function ProjectDetail() {
                   <TaskCard
                     key={task.id}
                     task={task}
-                    assignee={getMember(task.assignedTo)}
+                    assignees={getAssignees(task.assignedTo)}
                     onEdit={setEditingTask}
                     onDelete={setDeletingTask}
                     onStatusChange={handleTaskStatusChange}
@@ -790,7 +808,7 @@ export default function ProjectDetail() {
                   <TaskCard
                     key={task.id}
                     task={task}
-                    assignee={getMember(task.assignedTo)}
+                    assignees={getAssignees(task.assignedTo)}
                     onEdit={setEditingTask}
                     onDelete={setDeletingTask}
                     onStatusChange={handleTaskStatusChange}
@@ -815,7 +833,7 @@ export default function ProjectDetail() {
                   <TaskCard
                     key={task.id}
                     task={task}
-                    assignee={getMember(task.assignedTo)}
+                    assignees={getAssignees(task.assignedTo)}
                     onEdit={setEditingTask}
                     onDelete={setDeletingTask}
                     onStatusChange={handleTaskStatusChange}

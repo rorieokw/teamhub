@@ -14,6 +14,7 @@ export interface User {
   title?: string;
   avatarUrl?: string;
   nameColor?: string;
+  titleColor?: string;
   nameHistory?: NameHistoryEntry[];
   reputation?: number; // 0-100, starts at 100
   quickActions?: string[]; // User's customized quick action IDs
@@ -26,6 +27,7 @@ export interface User {
 // App-wide settings (admin controlled)
 export interface AppSettings {
   whitelistEnabled: boolean;
+  gamesEnabled: boolean;
   updatedAt?: Timestamp;
   updatedBy?: string;
 }
@@ -73,7 +75,7 @@ export interface Task {
   description?: string;
   status: 'todo' | 'in-progress' | 'done';
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  assignedTo: string;
+  assignedTo: string[]; // Array of user IDs assigned to this task
   dueDate?: Timestamp;
   blockedBy?: string[]; // Array of task IDs that block this task
   createdBy: string;

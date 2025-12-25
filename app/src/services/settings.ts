@@ -16,6 +16,7 @@ export async function getAppSettings(): Promise<AppSettings> {
   // Default settings if none exist
   return {
     whitelistEnabled: false,
+    gamesEnabled: true,
   };
 }
 
@@ -42,7 +43,7 @@ export function subscribeToAppSettings(
     if (docSnap.exists()) {
       callback(docSnap.data() as AppSettings);
     } else {
-      callback({ whitelistEnabled: false });
+      callback({ whitelistEnabled: false, gamesEnabled: true });
     }
   });
 }

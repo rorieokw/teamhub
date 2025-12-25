@@ -102,7 +102,7 @@ export default function UserProfileModal({ userId, isOpen, onClose, onStartDM }:
                     {user.displayName}
                   </p>
                   {user.title && (
-                    <p className="text-purple-400 text-sm font-medium">{user.title}</p>
+                    <p className="text-sm font-medium" style={{ color: user.titleColor || '#a78bfa' }}>{user.title}</p>
                   )}
                   {userStats && (
                     <div className="flex items-center gap-2 mt-1">

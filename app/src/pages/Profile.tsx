@@ -36,6 +36,7 @@ export default function Profile() {
   const userStats = useUserRank(currentUser?.uid);
   const [selectedAvatar, setSelectedAvatar] = useState(userProfile?.avatarUrl || '');
   const [selectedColor, setSelectedColor] = useState(userProfile?.nameColor || '');
+  const [selectedTitleColor, setSelectedTitleColor] = useState(userProfile?.titleColor || '');
   const [selectedBanner, setSelectedBanner] = useState(userProfile?.bannerId || 'default');
   const [title, setTitle] = useState(userProfile?.title || '');
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
@@ -78,6 +79,7 @@ export default function Profile() {
     if (userProfile) {
       setSelectedAvatar(userProfile.avatarUrl || '');
       setSelectedColor(userProfile.nameColor || '');
+      setSelectedTitleColor(userProfile.titleColor || '');
       setSelectedBanner(userProfile.bannerId || 'default');
       setTitle(userProfile.title || '');
       setDisplayName(userProfile.displayName || '');
@@ -92,6 +94,7 @@ export default function Profile() {
       await updateUserProfile(currentUser.uid, {
         avatarUrl: selectedAvatar,
         nameColor: selectedColor,
+        titleColor: selectedTitleColor,
         title: title,
         bannerId: selectedBanner,
       });
@@ -145,7 +148,7 @@ export default function Profile() {
                     {displayName || userProfile?.displayName}
                   </p>
                   <div className="flex items-center gap-2 text-sm">
-                    {title && <span className="text-purple-400">{title}</span>}
+                    {title && <span style={{ color: selectedTitleColor || '#a78bfa' }}>{title}</span>}
                     {title && userStats && <span className="text-gray-600">•</span>}
                     {userStats && (
                       <span style={{ color: RANK_COLORS[userStats.rank.tier].primary }}>
@@ -250,21 +253,39 @@ export default function Profile() {
               {/* Divider */}
               <div className="hidden sm:block w-px bg-white/10" />
 
-              {/* Name Color */}
-              <div className="sm:w-48">
-                <label className="text-xs text-gray-500 mb-2 block">Name Color</label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {NAME_COLORS.map((color) => (
-                    <button
-                      key={color.name}
-                      onClick={() => setSelectedColor(color.value)}
-                      className={`h-7 rounded-md transition-all ${
-                        selectedColor === color.value ? 'ring-2 ring-purple-400 ring-offset-1 ring-offset-[#1a1a2e]' : ''
-                      }`}
-                      style={{ backgroundColor: color.value || '#ffffff20' }}
-                      title={color.name}
-                    />
-                  ))}
+              {/* Colors */}
+              <div className="sm:w-48 space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-2 block">Name Colour</label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {NAME_COLORS.map((color) => (
+                      <button
+                        key={color.name}
+                        onClick={() => setSelectedColor(color.value)}
+                        className={`h-7 rounded-md transition-all ${
+                          selectedColor === color.value ? 'ring-2 ring-purple-400 ring-offset-1 ring-offset-[#1a1a2e]' : ''
+                        }`}
+                        style={{ backgroundColor: color.value || '#ffffff20' }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-2 block">Title Colour</label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {NAME_COLORS.map((color) => (
+                      <button
+                        key={`title-${color.name}`}
+                        onClick={() => setSelectedTitleColor(color.value)}
+                        className={`h-7 rounded-md transition-all ${
+                          selectedTitleColor === color.value ? 'ring-2 ring-purple-400 ring-offset-1 ring-offset-[#1a1a2e]' : ''
+                        }`}
+                        style={{ backgroundColor: color.value || '#a78bfa' }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

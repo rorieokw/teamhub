@@ -3,15 +3,16 @@ import type { Task, User, Project } from '../../types';
 
 interface TaskCardProps {
   task: Task;
-  assignee?: User;
+  assignees?: User[];
   project?: Project;
   allTasks?: Task[]; // For checking blocker status
   onEdit: (task: Task) => void;
-  onDelete: (task: Task) => void;
-  onStatusChange: (task: Task, status: Task['status']) => void;
+  onDelete?: (task: Task) => void;
+  onStatusChange?: (task: Task, status: Task['status']) => void;
   showProject?: boolean;
   showComments?: boolean;
   isDragging?: boolean;
+  isReadOnly?: boolean; // For "assigned by me" view - no status change, no delete
 }
 
 const priorityConfig = {
@@ -23,7 +24,7 @@ const priorityConfig = {
 
 export default function TaskCard({
   task,
-  assignee,
+  assignees = [],
   project,
   allTasks = [],
   onEdit,
@@ -32,6 +33,7 @@ export default function TaskCard({
   showProject = true,
   showComments = true,
   isDragging = false,
+  isReadOnly = false,
 }: TaskCardProps) {
   const isOverdue =
     task.dueDate &&
@@ -54,7 +56,7 @@ export default function TaskCard({
   const priority = priorityConfig[task.priority] || priorityConfig.medium;
 
   return (
-    <div className={`glass-card rounded-xl overflow-hidden transition-all group ${isDragging ? 'opacity-50 ring-2 ring-purple-500' : ''} ${isBlocked ? 'ring-1 ring-red-500/30' : ''}`}>
+    <div className={`glass-card rounded-xl overflow-hidden transition-all group ${isDragging ? 'shadow-2xl shadow-purple-500/30 ring-2 ring-purple-500 scale-105' : ''} ${isBlocked ? 'ring-1 ring-red-500/30' : ''}`}>
       {/* Blocked Banner */}
       {isBlocked && (
         <div className="bg-red-500/20 px-4 py-2 flex items-center gap-2 border-b border-red-500/20">
@@ -82,15 +84,17 @@ export default function TaskCard({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
-          <button
-            onClick={() => onDelete(task)}
-            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-            title="Delete"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {onDelete && (
+            <button
+              onClick={() => onDelete(task)}
+              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+              title="Delete"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -133,42 +137,75 @@ export default function TaskCard({
           )}
         </div>
 
-        {/* Assignee */}
-        {assignee && (
-          <div
-            className="w-7 h-7 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-medium shadow-lg shadow-purple-500/25"
-            title={assignee.title ? `${assignee.displayName} - ${assignee.title}` : assignee.displayName}
-          >
-            {assignee.displayName?.charAt(0).toUpperCase()}
+        {/* Assignees */}
+        {assignees.length > 0 && (
+          <div className="flex -space-x-2">
+            {assignees.slice(0, 3).map((assignee, index) => (
+              <div
+                key={assignee.id}
+                className="w-7 h-7 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-xs font-medium shadow-lg shadow-purple-500/25 ring-2 ring-[#1a1a2e]"
+                style={{ zIndex: 10 - index }}
+                title={assignee.title ? `${assignee.displayName} - ${assignee.title}` : assignee.displayName}
+              >
+                {assignee.displayName?.charAt(0).toUpperCase()}
+              </div>
+            ))}
+            {assignees.length > 3 && (
+              <div
+                className="w-7 h-7 bg-gray-600 rounded-full flex items-center justify-center text-white text-xs font-medium shadow-lg ring-2 ring-[#1a1a2e]"
+                title={assignees.slice(3).map(a => a.displayName).join(', ')}
+              >
+                +{assignees.length - 3}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Quick Status Change */}
-      <div className="pt-3 border-t border-white/10 flex gap-2">
-        {task.status !== 'todo' && (
-          <button
-            onClick={() => onStatusChange(task, 'todo')}
-            className="flex-1 px-2 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-colors font-medium"
-          >
-            To Do
-          </button>
-        )}
-        {task.status !== 'in-progress' && (
-          <button
-            onClick={() => onStatusChange(task, 'in-progress')}
-            className="flex-1 px-2 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors font-medium"
-          >
-            In Progress
-          </button>
-        )}
-        {task.status !== 'done' && (
-          <button
-            onClick={() => onStatusChange(task, 'done')}
-            className="flex-1 px-2 py-1.5 text-xs bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg transition-colors font-medium"
-          >
-            Done
-          </button>
+      {/* Quick Status Change / Status Display */}
+      <div className="pt-3 border-t border-white/10">
+        {isReadOnly || !onStatusChange ? (
+          // Read-only status display
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Status:</span>
+            <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+              task.status === 'done'
+                ? 'bg-green-500/20 text-green-400'
+                : task.status === 'in-progress'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'bg-white/10 text-gray-400'
+            }`}>
+              {task.status === 'done' ? 'Done' : task.status === 'in-progress' ? 'In Progress' : 'To Do'}
+            </span>
+          </div>
+        ) : (
+          // Interactive status buttons
+          <div className="flex gap-2">
+            {task.status !== 'todo' && (
+              <button
+                onClick={() => onStatusChange(task, 'todo')}
+                className="flex-1 px-2 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-colors font-medium"
+              >
+                To Do
+              </button>
+            )}
+            {task.status !== 'in-progress' && (
+              <button
+                onClick={() => onStatusChange(task, 'in-progress')}
+                className="flex-1 px-2 py-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors font-medium"
+              >
+                In Progress
+              </button>
+            )}
+            {task.status !== 'done' && (
+              <button
+                onClick={() => onStatusChange(task, 'done')}
+                className="flex-1 px-2 py-1.5 text-xs bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg transition-colors font-medium"
+              >
+                Done
+              </button>
+            )}
+          </div>
         )}
       </div>
 

@@ -30,7 +30,7 @@ export function subscribeToAllUsers(
 
 export async function updateUserProfile(
   userId: string,
-  data: Partial<Pick<User, 'avatarUrl' | 'nameColor' | 'title' | 'quickActions' | 'bannerId'>>
+  data: Partial<Pick<User, 'avatarUrl' | 'nameColor' | 'titleColor' | 'title' | 'quickActions' | 'bannerId'>>
 ): Promise<void> {
   const docRef = doc(db, 'users', userId);
   await updateDoc(docRef, data);

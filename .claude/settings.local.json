@@ -24,7 +24,10 @@
       "Bash(popd:*)",
       "Bash(npm ls:*)",
       "Bash(git merge:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "WebFetch(domain:teamhubworkspace.web.app)",
+      "Bash(curl:*)",
+      "Bash(git fetch:*)"
     ]
   }
 }

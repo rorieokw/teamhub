@@ -214,7 +214,7 @@ export default function ChatMessage({
               }}
             >
               {sender?.title && (
-                <span className="text-gray-400 font-normal">[{sender.title}] </span>
+                <span className="font-normal" style={{ color: sender.titleColor || '#9ca3af' }}>[{sender.title}] </span>
               )}
               {sender?.displayName || 'Unknown User'}
             </button>

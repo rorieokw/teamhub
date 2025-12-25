@@ -9,7 +9,7 @@ interface TaskModalProps {
     title: string;
     description: string;
     projectId: string;
-    assignedTo: string;
+    assignedTo: string[];
     priority: Task['priority'];
     status: Task['status'];
     dueDate?: Date;
@@ -37,7 +37,7 @@ export default function TaskModal({
   const [taskTitle, setTaskTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
-  const [assignedTo, setAssignedTo] = useState('');
+  const [assignedTo, setAssignedTo] = useState<string[]>([]);
   const [priority, setPriority] = useState<Task['priority']>('medium');
   const [status, setStatus] = useState<Task['status']>('todo');
   const [dueDate, setDueDate] = useState('');
@@ -51,7 +51,9 @@ export default function TaskModal({
       setTaskTitle(task.title);
       setDescription(task.description || '');
       setProjectId(task.projectId);
-      setAssignedTo(task.assignedTo);
+      // Handle backwards compatibility: old tasks might have string, new tasks have array
+      const taskAssignees = Array.isArray(task.assignedTo) ? task.assignedTo : [task.assignedTo].filter(Boolean);
+      setAssignedTo(taskAssignees);
       setPriority(task.priority);
       setStatus(task.status);
       setBlockedBy(task.blockedBy || []);
@@ -64,8 +66,13 @@ export default function TaskModal({
     } else {
       setTaskTitle('');
       setDescription('');
-      setProjectId(defaultProjectId || (projects[0]?.id || ''));
-      setAssignedTo(members[0]?.id || '');
+      const initialProjectId = defaultProjectId || (projects[0]?.id || '');
+      setProjectId(initialProjectId);
+      // Auto-select first member of the selected project
+      const initialProject = projects.find((p) => p.id === initialProjectId);
+      const projectMemberIds = initialProject?.members || [];
+      const firstProjectMember = members.find((m) => projectMemberIds.includes(m.id));
+      setAssignedTo(firstProjectMember ? [firstProjectMember.id] : []);
       setPriority('medium');
       setStatus('todo');
       setDueDate('');
@@ -89,8 +96,8 @@ export default function TaskModal({
       return;
     }
 
-    if (!assignedTo) {
-      setError('Please assign the task to someone');
+    if (assignedTo.length === 0) {
+      setError('Please assign the task to at least one person');
       return;
     }
 
@@ -107,9 +114,10 @@ export default function TaskModal({
         blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
       });
       onClose();
-    } catch (err) {
-      setError('Failed to save task. Please try again.');
-      console.error(err);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to save task: ${errorMessage}`);
+      console.error('Task creation error:', err);
     } finally {
       setLoading(false);
     }
@@ -167,7 +175,7 @@ export default function TaskModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Description
+              Description <span className="text-gray-500 font-normal">(Optional)</span>
             </label>
             <textarea
               value={description}
@@ -186,8 +194,13 @@ export default function TaskModal({
               <select
                 value={projectId}
                 onChange={(e) => {
-                  setProjectId(e.target.value);
-                  setAssignedTo(''); // Reset assignee when project changes
+                  const newProjectId = e.target.value;
+                  setProjectId(newProjectId);
+                  // Auto-select first member of the new project
+                  const newProject = projects.find((p) => p.id === newProjectId);
+                  const projectMemberIds = newProject?.members || [];
+                  const firstProjectMember = members.find((m) => projectMemberIds.includes(m.id));
+                  setAssignedTo(firstProjectMember ? [firstProjectMember.id] : []);
                 }}
                 className={selectClasses}
               >
@@ -199,23 +212,77 @@ export default function TaskModal({
                 ))}
               </select>
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Assign To <span className="text-red-400">*</span>
-              </label>
-              <select
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                className={selectClasses}
-              >
-                <option value="" className="bg-[#2d2a4a]">Select person</option>
-                {projectMembers.map((member) => (
-                  <option key={member.id} value={member.id} className="bg-[#2d2a4a]">
-                    {member.displayName}{member.title ? ` (${member.title})` : ''}
-                  </option>
-                ))}
-              </select>
+          {/* Assignees - Multi-select */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Assign To <span className="text-red-400">*</span>
+            </label>
+            {/* Selected assignees */}
+            {assignedTo.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {assignedTo.map((userId) => {
+                  const member = projectMembers.find((m) => m.id === userId);
+                  if (!member) return null;
+                  return (
+                    <div
+                      key={userId}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-sm"
+                    >
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-medium">
+                        {member.displayName?.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-purple-300">{member.displayName}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAssignedTo(assignedTo.filter((id) => id !== userId))}
+                        className="text-purple-400 hover:text-purple-300 ml-1"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Member selector */}
+            <div className="flex flex-wrap gap-2 p-3 bg-white/5 border border-white/10 rounded-xl max-h-48 overflow-y-auto">
+              {projectMembers.length === 0 ? (
+                <p className="text-gray-500 text-sm">Select a project first</p>
+              ) : (
+                projectMembers.map((member) => {
+                  const isSelected = assignedTo.includes(member.id);
+                  return (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setAssignedTo(assignedTo.filter((id) => id !== member.id));
+                        } else {
+                          setAssignedTo([...assignedTo, member.id]);
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                        isSelected
+                          ? 'bg-purple-500/30 border border-purple-500/50 text-white'
+                          : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${
+                        isSelected ? 'bg-purple-500 text-white' : 'bg-white/20 text-gray-300'
+                      }`}>
+                        {member.displayName?.charAt(0).toUpperCase()}
+                      </div>
+                      {member.displayName}
+                      {member.title && <span className="text-gray-500 text-xs">({member.title})</span>}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -254,20 +321,34 @@ export default function TaskModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Due Date
+              Due Date <span className="text-gray-500 font-normal">(Optional)</span>
             </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className={inputClasses}
-            />
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className={`${inputClasses} flex-1`}
+              />
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => setDueDate('')}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+                  title="Clear date"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Blocked By Section */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Blocked By
+              Blocked By <span className="text-gray-500 font-normal">(Optional)</span>
             </label>
 
             {/* Show selected blockers */}
@@ -275,7 +356,10 @@ export default function TaskModal({
               <div className="flex flex-wrap gap-2 mb-2">
                 {blockedBy.map((blockerId) => {
                   const blockerTask = allTasks.find((t) => t.id === blockerId);
-                  const assignee = members.find((m) => m.id === blockerTask?.assignedTo);
+                  const blockerAssignees: string[] = blockerTask?.assignedTo
+                    ? (Array.isArray(blockerTask.assignedTo) ? blockerTask.assignedTo : [blockerTask.assignedTo])
+                    : [];
+                  const assignee = members.find((m) => blockerAssignees.includes(m.id));
                   return (
                     <div
                       key={blockerId}
@@ -311,7 +395,8 @@ export default function TaskModal({
                 {allTasks
                   .filter((t) => t.id !== task?.id && t.status !== 'done' && !blockedBy.includes(t.id))
                   .map((t) => {
-                    const assignee = members.find((m) => m.id === t.assignedTo);
+                    const taskAssignees = Array.isArray(t.assignedTo) ? t.assignedTo : [t.assignedTo].filter(Boolean);
+                    const assignee = members.find((m) => taskAssignees.includes(m.id));
                     return (
                       <button
                         key={t.id}
