@@ -48,6 +48,14 @@ TeamHub/
 - When asked to "push to GitHub" or "commit and push", always use `develop` branch
 - Only push to `master` when the user specifically says "push to master" or "deploy to production"
 
+## Versioning (IMPORTANT)
+
+When pushing changes to `develop`, **always update the version number** in `app/src/version.ts`:
+
+- **Small updates** (bug fixes, minor tweaks): increment patch version → `1.0.1`, `1.0.2`, etc.
+- **Larger updates** (new features, significant changes): increment minor version → `1.1.0`, `1.2.0`, etc.
+- **Major releases** (breaking changes, major overhauls): increment major version → `2.0.0`, etc.
+
 ## Development Guidelines
 
 1. Keep code simple and readable
