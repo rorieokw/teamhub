@@ -845,3 +845,90 @@ body {
 .flip-card {
   animation: flipCard 0.3s ease-in-out forwards;
 }
+
+/* ============================================
+   FONT SIZE ACCESSIBILITY
+   ============================================ */
+
+/* Default medium font size */
+:root {
+  --font-scale: 1;
+}
+
+[data-font-size="small"] {
+  --font-scale: 0.875;
+  font-size: 14px;
+}
+
+[data-font-size="medium"] {
+  --font-scale: 1;
+  font-size: 16px;
+}
+
+[data-font-size="large"] {
+  --font-scale: 1.125;
+  font-size: 18px;
+}
+
+/* Ensure headings scale appropriately */
+[data-font-size="small"] h1 { font-size: 1.75rem; }
+[data-font-size="small"] h2 { font-size: 1.5rem; }
+[data-font-size="small"] h3 { font-size: 1.25rem; }
+[data-font-size="small"] h4 { font-size: 1.1rem; }
+
+[data-font-size="large"] h1 { font-size: 2.25rem; }
+[data-font-size="large"] h2 { font-size: 1.875rem; }
+[data-font-size="large"] h3 { font-size: 1.5rem; }
+[data-font-size="large"] h4 { font-size: 1.25rem; }
+
+/* Scale text utilities */
+[data-font-size="small"] .text-sm { font-size: 0.75rem; }
+[data-font-size="small"] .text-base { font-size: 0.8125rem; }
+[data-font-size="small"] .text-lg { font-size: 0.9375rem; }
+[data-font-size="small"] .text-xl { font-size: 1.1rem; }
+[data-font-size="small"] .text-2xl { font-size: 1.35rem; }
+
+[data-font-size="large"] .text-sm { font-size: 0.9375rem; }
+[data-font-size="large"] .text-base { font-size: 1.125rem; }
+[data-font-size="large"] .text-lg { font-size: 1.3125rem; }
+[data-font-size="large"] .text-xl { font-size: 1.5rem; }
+[data-font-size="large"] .text-2xl { font-size: 1.75rem; }
+
+/* ============================================
+   REDUCE MOTION ACCESSIBILITY
+   ============================================ */
+
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+[data-reduce-motion="true"] .animate-slide-in,
+[data-reduce-motion="true"] .animate-fade-in,
+[data-reduce-motion="true"] .animate-scale-in,
+[data-reduce-motion="true"] .animate-pulse-glow,
+[data-reduce-motion="true"] .animate-gradient,
+[data-reduce-motion="true"] .animate-wiggle,
+[data-reduce-motion="true"] .animate-pulse-subtle,
+[data-reduce-motion="true"] .animate-spin,
+[data-reduce-motion="true"] .banner-shimmer,
+[data-reduce-motion="true"] .banner-pulse-glow,
+[data-reduce-motion="true"] .deal-card,
+[data-reduce-motion="true"] .deal-card-simple,
+[data-reduce-motion="true"] .flip-card,
+[data-reduce-motion="true"] .audio-bar {
+  animation: none !important;
+}
+
+[data-reduce-motion="true"] .banner-shimmer::after,
+[data-reduce-motion="true"] .banner-pulse-glow::after {
+  display: none !important;
+}
+
+[data-reduce-motion="true"] .hover-lift:hover {
+  transform: none !important;
+}

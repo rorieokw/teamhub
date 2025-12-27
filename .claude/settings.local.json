@@ -28,6 +28,7 @@
       "WebFetch(domain:teamhubworkspace.web.app)",
       "Bash(curl:*)",
       "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
       "Bash(git pull:*)",
       "Bash(timeout /t 3 /nobreak)",
       "Bash(wmic logicaldisk where \"DeviceID=''C:''\" get Size,FreeSpace,Caption /format:list)",

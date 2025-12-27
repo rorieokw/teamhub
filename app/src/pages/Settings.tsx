@@ -57,7 +57,7 @@ const shortcutCategories = [
 
 export default function Settings() {
   const { currentUser, userProfile } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, fontSize, setFontSize, reduceMotion, setReduceMotion } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const userStats = useUserRank(currentUser?.uid);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -65,9 +65,6 @@ export default function Settings() {
   const [pushToTalkKey, setPushToTalkKey] = useState('Space');
   const [isRecordingKey, setIsRecordingKey] = useState(false);
 
-  // Accessibility settings
-  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
-  const [reduceMotion, setReduceMotion] = useState(false);
 
   // Chat settings
   const [showTimestamps, setShowTimestamps] = useState(true);
