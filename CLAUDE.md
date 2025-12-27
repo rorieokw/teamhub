@@ -50,8 +50,12 @@ TeamHub/
 
 ## Versioning (IMPORTANT)
 
-When pushing changes to `develop`, **always update the version number** in `app/src/version.ts`:
+When pushing changes to `develop`, **always update the version number** in TWO files:
 
+1. `app/package.json` - the `"version"` field (used by Vite at build time)
+2. `app/src/version.ts` - `APP_VERSION`, `BUILD_DATE`, and add changelog entry
+
+Version guidelines:
 - **Small updates** (bug fixes, minor tweaks): increment patch version → `1.0.1`, `1.0.2`, etc.
 - **Larger updates** (new features, significant changes): increment minor version → `1.1.0`, `1.2.0`, etc.
 - **Major releases** (breaking changes, major overhauls): increment major version → `2.0.0`, etc.
