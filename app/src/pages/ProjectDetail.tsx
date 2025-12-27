@@ -27,13 +27,24 @@ import {
 import { getUsersByIds } from '../services/users';
 import { createInvite } from '../services/invites';
 import { notifyTaskAssigned } from '../services/notifications';
+import {
+  subscribeToProjectLayout,
+  toggleProjectWidgetCollapsed,
+  toggleProjectWidgetVisibility,
+} from '../services/projectLayouts';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import TaskModal from '../components/tasks/TaskModal';
 import TaskCard from '../components/tasks/TaskCard';
 import DocumentLinkForm from '../components/documents/DocumentLinkForm';
 import DocumentCard from '../components/documents/DocumentCard';
 import SessionControl from '../components/sessions/SessionControl';
-import type { Project, Milestone, User, Task, Document } from '../types';
+import MyProjectTasks from '../components/project/MyProjectTasks';
+import QuickNotes from '../components/project/QuickNotes';
+import PinnedLinks from '../components/project/PinnedLinks';
+import RecentActivity from '../components/project/RecentActivity';
+import Deadlines from '../components/project/Deadlines';
+import PasswordVault from '../components/project/PasswordVault';
+import type { Project, Milestone, User, Task, Document, ProjectWidgetConfig } from '../types';
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -65,6 +76,11 @@ export default function ProjectDetail() {
   const [milestoneDescInput, setMilestoneDescInput] = useState('');
   const [newMilestoneDesc, setNewMilestoneDesc] = useState('');
   const [showNewMilestoneNote, setShowNewMilestoneNote] = useState(false);
+  const [projectLayout, setProjectLayout] = useState<{
+    leftWidgets: ProjectWidgetConfig[];
+    rightWidgets: ProjectWidgetConfig[];
+  }>({ leftWidgets: [], rightWidgets: [] });
+  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
 
   // Subscribe to project
   useEffect(() => {
@@ -147,6 +163,14 @@ export default function ProjectDetail() {
 
     getUsersByIds(project.members).then(setMembers);
   }, [project?.members]);
+
+  // Subscribe to project layout
+  useEffect(() => {
+    if (!id || !currentUser) return;
+
+    const unsubscribe = subscribeToProjectLayout(currentUser.uid, id, setProjectLayout);
+    return () => unsubscribe();
+  }, [id, currentUser]);
 
   async function handleAddMilestone() {
     if (!newMilestone.trim() || !id) return;
@@ -340,6 +364,38 @@ export default function ProjectDetail() {
   const inProgressTasks = tasks.filter((t) => t.status === 'in-progress');
   const doneTasks = tasks.filter((t) => t.status === 'done');
 
+  // Helper to check if a widget is collapsed
+  const isWidgetCollapsed = (widgetId: string) => {
+    const left = projectLayout.leftWidgets.find((w) => w.id === widgetId);
+    const right = projectLayout.rightWidgets.find((w) => w.id === widgetId);
+    return left?.collapsed || right?.collapsed || false;
+  };
+
+  // Toggle widget collapsed state
+  const handleToggleCollapse = (widgetId: string) => {
+    if (!currentUser || !id) return;
+    toggleProjectWidgetCollapsed(currentUser.uid, id, projectLayout, widgetId as ProjectWidgetConfig['id']);
+  };
+
+  // Check if a widget is visible
+  const isWidgetVisible = (widgetId: string) => {
+    const widget = [...projectLayout.leftWidgets, ...projectLayout.rightWidgets].find(
+      (w) => w.id === widgetId
+    );
+    return widget?.visible ?? true; // Default to visible if not configured
+  };
+
+  // Toggle widget visibility
+  const handleToggleVisibility = (widgetId: string) => {
+    if (!currentUser || !id) return;
+    toggleProjectWidgetVisibility(
+      currentUser.uid,
+      id,
+      projectLayout,
+      widgetId as ProjectWidgetConfig['id']
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -401,7 +457,7 @@ export default function ProjectDetail() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -471,33 +527,151 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {/* Progress Overview */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-400">Overall Progress</span>
-          <span className="text-2xl font-bold text-white">{project.progress}%</span>
-        </div>
-        <div className="w-full bg-gray-700 rounded-full h-3">
-          <div
-            className={`h-3 rounded-full transition-all ${
-              project.progress === 100
-                ? 'bg-green-500'
-                : project.progress >= 50
-                ? 'bg-blue-500'
-                : 'bg-blue-400'
-            }`}
-            style={{ width: `${project.progress}%` }}
-          ></div>
-        </div>
-        <p className="text-gray-500 text-sm mt-2">
-          {completedCount} of {milestones.length} milestones completed
-        </p>
-      </div>
+      {/* 2-Column Layout: Widgets | Main Content */}
+      <div className="flex gap-6">
+        {/* Left Column - Widgets Sidebar */}
+        <div className="hidden lg:block w-80 flex-shrink-0">
+          {/* Widgets Header */}
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1" strokeWidth={2} />
+                <rect x="14" y="3" width="7" height="7" rx="1" strokeWidth={2} />
+                <rect x="3" y="14" width="7" height="7" rx="1" strokeWidth={2} />
+                <rect x="14" y="14" width="7" height="7" rx="1" strokeWidth={2} />
+              </svg>
+              Widgets
+            </h3>
+            <button
+              onClick={() => setShowWidgetPicker(!showWidgetPicker)}
+              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+              title="Customize widgets"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Master Plan (Milestones) */}
-        <div className="lg:col-span-2">
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+          {/* Widget Picker Dropdown */}
+          {showWidgetPicker && (
+            <div className="mb-4 p-3 bg-gray-800 border border-gray-700 rounded-xl">
+              <p className="text-xs text-gray-400 mb-2">Toggle widgets:</p>
+              <div className="space-y-1">
+                {(['my-tasks', 'quick-notes', 'pinned-links', 'password-vault', 'deadlines', 'recent-activity'] as const).map((widgetId) => {
+                  const isVisible = isWidgetVisible(widgetId);
+                  const labels: Record<string, string> = {
+                    'my-tasks': '📋 My Tasks',
+                    'quick-notes': '📝 Quick Notes',
+                    'pinned-links': '🔗 Pinned Links',
+                    'password-vault': '🔐 Password Vault',
+                    'deadlines': '⏰ Deadlines',
+                    'recent-activity': '📊 Recent Activity',
+                  };
+                  return (
+                    <button
+                      key={widgetId}
+                      onClick={() => handleToggleVisibility(widgetId)}
+                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm transition-colors ${
+                        isVisible ? 'bg-purple-600/20 text-purple-300' : 'bg-gray-700/30 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <span>{labels[widgetId]}</span>
+                      {isVisible && (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Widgets List */}
+          <div className="space-y-4">
+            {isWidgetVisible('my-tasks') && (
+              <MyProjectTasks
+                tasks={tasks}
+                currentUserId={currentUser?.uid || ''}
+                members={members}
+                collapsed={isWidgetCollapsed('my-tasks')}
+                onToggleCollapse={() => handleToggleCollapse('my-tasks')}
+              />
+            )}
+            {isWidgetVisible('quick-notes') && (
+              <QuickNotes
+                projectId={id || ''}
+                userId={currentUser?.uid || ''}
+                collapsed={isWidgetCollapsed('quick-notes')}
+                onToggleCollapse={() => handleToggleCollapse('quick-notes')}
+              />
+            )}
+            {isWidgetVisible('pinned-links') && (
+              <PinnedLinks
+                projectId={id || ''}
+                userId={currentUser?.uid || ''}
+                userName={userProfile?.displayName || ''}
+                collapsed={isWidgetCollapsed('pinned-links')}
+                onToggleCollapse={() => handleToggleCollapse('pinned-links')}
+              />
+            )}
+            {isWidgetVisible('password-vault') && (
+              <PasswordVault
+                projectId={id || ''}
+                userId={currentUser?.uid || ''}
+                userName={userProfile?.displayName || ''}
+                collapsed={isWidgetCollapsed('password-vault')}
+                onToggleCollapse={() => handleToggleCollapse('password-vault')}
+              />
+            )}
+            {isWidgetVisible('deadlines') && (
+              <Deadlines
+                tasks={tasks}
+                collapsed={isWidgetCollapsed('deadlines')}
+                onToggleCollapse={() => handleToggleCollapse('deadlines')}
+              />
+            )}
+            {isWidgetVisible('recent-activity') && (
+              <RecentActivity
+                projectId={id || ''}
+                members={members}
+                collapsed={isWidgetCollapsed('recent-activity')}
+                onToggleCollapse={() => handleToggleCollapse('recent-activity')}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 min-w-0">
+          {/* Progress Overview */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-400">Overall Progress</span>
+              <span className="text-2xl font-bold text-white">{project.progress}%</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-3">
+              <div
+                className={`h-3 rounded-full transition-all ${
+                  project.progress === 100
+                    ? 'bg-green-500'
+                    : project.progress >= 50
+                    ? 'bg-blue-500'
+                    : 'bg-blue-400'
+                }`}
+                style={{ width: `${project.progress}%` }}
+              ></div>
+            </div>
+            <p className="text-gray-500 text-sm mt-2">
+              {completedCount} of {milestones.length} milestones completed
+            </p>
+          </div>
+
+          {/* Master Plan (Milestones) */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
             <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
               📋 Master Plan
             </h2>
@@ -664,239 +838,242 @@ export default function ProjectDetail() {
               </ul>
             )}
           </div>
-        </div>
 
-        {/* Team Members */}
-        <div>
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              👥 Team ({members.length})
-            </h2>
+          {/* Project Tasks */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                ☑ Tasks ({tasks.length})
+              </h2>
+              <button
+                onClick={() => setShowTaskModal(true)}
+                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+              >
+                + Add Task
+              </button>
+            </div>
 
-            {/* Members List */}
-            <ul className="space-y-3 mb-4">
-              {members.map((member) => (
-                <li key={member.id} className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
-                    {member.displayName?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm truncate">
-                      {member.displayName}
-                      {member.id === project.createdBy && (
-                        <span className="text-gray-500 text-xs ml-2">Owner</span>
-                      )}
-                    </p>
-                    <p className="text-gray-500 text-xs truncate">{member.email}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-
-            {/* Invite */}
-            {isOwner && (
-              <div className="pt-4 border-t border-gray-700">
-                <p className="text-sm text-gray-400 mb-2">Invite by email</p>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={handleInvite}
-                    disabled={inviteLoading || !inviteEmail.trim()}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm rounded-lg transition-colors"
-                  >
-                    {inviteLoading ? '...' : 'Invite'}
-                  </button>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* To Do */}
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
+                  To Do ({todoTasks.length})
+                </h3>
+                <div className="space-y-2">
+                  {todoTasks.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No tasks</p>
+                  ) : (
+                    todoTasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        assignees={getAssignees(task.assignedTo)}
+                        onEdit={setEditingTask}
+                        onDelete={setDeletingTask}
+                        onStatusChange={handleTaskStatusChange}
+                        showProject={false}
+                      />
+                    ))
+                  )}
                 </div>
-                {inviteMessage && (
-                  <p
-                    className={`text-sm mt-2 ${
-                      inviteMessage.includes('sent')
-                        ? 'text-green-400'
-                        : 'text-yellow-400'
-                    }`}
-                  >
-                    {inviteMessage}
-                  </p>
-                )}
+              </div>
+
+              {/* In Progress */}
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  In Progress ({inProgressTasks.length})
+                </h3>
+                <div className="space-y-2">
+                  {inProgressTasks.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No tasks</p>
+                  ) : (
+                    inProgressTasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        assignees={getAssignees(task.assignedTo)}
+                        onEdit={setEditingTask}
+                        onDelete={setDeletingTask}
+                        onStatusChange={handleTaskStatusChange}
+                        showProject={false}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Done */}
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Done ({doneTasks.length})
+                </h3>
+                <div className="space-y-2">
+                  {doneTasks.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No tasks</p>
+                  ) : (
+                    doneTasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        assignees={getAssignees(task.assignedTo)}
+                        onEdit={setEditingTask}
+                        onDelete={setDeletingTask}
+                        onStatusChange={handleTaskStatusChange}
+                        showProject={false}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Project Documents */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                📁 Documents ({documents.length})
+              </h2>
+              <button
+                onClick={() => setShowUploadArea(!showUploadArea)}
+                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors"
+              >
+                {showUploadArea ? 'Cancel' : '+ Add Link'}
+              </button>
+            </div>
+
+            {/* Add Document Link */}
+            {showUploadArea && currentUser && id && (
+              <div className="mb-4 bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <DocumentLinkForm
+                  projectId={id}
+                  userId={currentUser.uid}
+                  onSuccess={() => setShowUploadArea(false)}
+                />
+              </div>
+            )}
+
+            {/* Documents List */}
+            {documents.length === 0 ? (
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
+                <div className="text-3xl mb-2">📄</div>
+                <p className="text-gray-400">No documents uploaded yet</p>
+                <button
+                  onClick={() => setShowUploadArea(true)}
+                  className="mt-3 text-purple-400 hover:text-purple-300 text-sm"
+                >
+                  Upload your first document
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {documents.map((doc) => (
+                  <DocumentCard
+                    key={doc.id}
+                    document={doc}
+                    uploader={uploaders.get(doc.uploadedBy)}
+                    canDelete={doc.uploadedBy === currentUser?.uid || isAdmin}
+                    onDelete={() => setDeletingDocument(doc)}
+                  />
+                ))}
               </div>
             )}
           </div>
 
-          {/* Session Control - Start/Stop coding session */}
-          <div className="mt-4">
-            <SessionControl projectId={project.id} projectName={project.name} />
-          </div>
+          {/* Team & Session Row */}
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Team Members */}
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                👥 Team ({members.length})
+              </h2>
+              <ul className="space-y-2">
+                {members.map((member) => (
+                  <li key={member.id} className="flex items-center gap-3 p-2 bg-gray-700/30 rounded-lg">
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {member.displayName?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm truncate">
+                        {member.displayName}
+                        {member.id === project.createdBy && (
+                          <span className="text-gray-500 text-xs ml-2">(Owner)</span>
+                        )}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-          {/* Project Info */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mt-4">
-            <h3 className="text-sm font-medium text-gray-400 mb-3">Project Info</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Status</span>
-                <span className="text-white capitalize">{project.status.replace('-', ' ')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Milestones</span>
-                <span className="text-white">{milestones.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Members</span>
-                <span className="text-white">{members.length}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Project Tasks */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            ☑ Tasks ({tasks.length})
-          </h2>
-          <button
-            onClick={() => setShowTaskModal(true)}
-            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
-          >
-            + Add Task
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* To Do */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
-              To Do ({todoTasks.length})
-            </h3>
-            <div className="space-y-2">
-              {todoTasks.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">No tasks</p>
-              ) : (
-                todoTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    assignees={getAssignees(task.assignedTo)}
-                    onEdit={setEditingTask}
-                    onDelete={setDeletingTask}
-                    onStatusChange={handleTaskStatusChange}
-                    showProject={false}
-                  />
-                ))
+              {/* Invite */}
+              {isOwner && (
+                <div className="pt-4 mt-4 border-t border-gray-700">
+                  <p className="text-xs text-gray-400 mb-2">Invite a team member</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                    <button
+                      onClick={handleInvite}
+                      disabled={inviteLoading || !inviteEmail.trim()}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm rounded-lg transition-colors"
+                    >
+                      {inviteLoading ? '...' : 'Invite'}
+                    </button>
+                  </div>
+                  {inviteMessage && (
+                    <p className={`text-xs mt-2 ${inviteMessage.includes('sent') ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {inviteMessage}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
-          </div>
 
-          {/* In Progress */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-              In Progress ({inProgressTasks.length})
-            </h3>
-            <div className="space-y-2">
-              {inProgressTasks.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">No tasks</p>
-              ) : (
-                inProgressTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    assignees={getAssignees(task.assignedTo)}
-                    onEdit={setEditingTask}
-                    onDelete={setDeletingTask}
-                    onStatusChange={handleTaskStatusChange}
-                    showProject={false}
-                  />
-                ))
-              )}
+            {/* Session Control */}
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                🎮 Work Sessions
+              </h2>
+              <SessionControl projectId={project.id} projectName={project.name} />
             </div>
-          </div>
 
-          {/* Done */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              Done ({doneTasks.length})
-            </h3>
-            <div className="space-y-2">
-              {doneTasks.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">No tasks</p>
-              ) : (
-                doneTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    assignees={getAssignees(task.assignedTo)}
-                    onEdit={setEditingTask}
-                    onDelete={setDeletingTask}
-                    onStatusChange={handleTaskStatusChange}
-                    showProject={false}
-                  />
-                ))
-              )}
+            {/* Project Info */}
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                📊 Project Info
+              </h2>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center p-2 bg-gray-700/30 rounded-lg">
+                  <span className="text-gray-400 text-sm">Status</span>
+                  <span className="text-white capitalize font-medium">{project.status.replace('-', ' ')}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-700/30 rounded-lg">
+                  <span className="text-gray-400 text-sm">Milestones</span>
+                  <span className="text-white font-medium">{completedCount} / {milestones.length}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-700/30 rounded-lg">
+                  <span className="text-gray-400 text-sm">Tasks</span>
+                  <span className="text-white font-medium">{doneTasks.length} / {tasks.length} done</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-700/30 rounded-lg">
+                  <span className="text-gray-400 text-sm">Team Size</span>
+                  <span className="text-white font-medium">{members.length} members</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        {/* End Main Content */}
       </div>
-
-      {/* Project Documents */}
-      <div className="mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            📁 Documents ({documents.length})
-          </h2>
-          <button
-            onClick={() => setShowUploadArea(!showUploadArea)}
-            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors"
-          >
-            {showUploadArea ? 'Cancel' : '+ Add Link'}
-          </button>
-        </div>
-
-        {/* Add Document Link */}
-        {showUploadArea && currentUser && id && (
-          <div className="mb-4 bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <DocumentLinkForm
-              projectId={id}
-              userId={currentUser.uid}
-              onSuccess={() => setShowUploadArea(false)}
-            />
-          </div>
-        )}
-
-        {/* Documents List */}
-        {documents.length === 0 ? (
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-8 text-center">
-            <div className="text-3xl mb-2">📄</div>
-            <p className="text-gray-400">No documents uploaded yet</p>
-            <button
-              onClick={() => setShowUploadArea(true)}
-              className="mt-3 text-purple-400 hover:text-purple-300 text-sm"
-            >
-              Upload your first document
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {documents.map((doc) => (
-              <DocumentCard
-                key={doc.id}
-                document={doc}
-                uploader={uploaders.get(doc.uploadedBy)}
-                canDelete={doc.uploadedBy === currentUser?.uid}
-                onDelete={() => setDeletingDocument(doc)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      {/* End 2-Column Layout */}
 
       {/* Create Task Modal */}
       <TaskModal

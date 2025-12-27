@@ -220,7 +220,7 @@ export default function MahjongGame() {
   // Show game table if in a game
   if (currentGame && currentUser?.uid) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col overflow-hidden">
         {error && (
           <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-sm mb-4">
             {error}

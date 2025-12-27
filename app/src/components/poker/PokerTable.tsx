@@ -11,14 +11,14 @@ interface PokerTableProps {
   onLeave: () => void;
 }
 
-// Seat positions around the table - pushed further out for better spacing
+// Seat positions around the table - adjusted to fit better on screen
 const seatPositions = [
-  { top: '100%', left: '50%', transform: 'translate(-50%, -50%)' },  // Bottom center (seat 0 - you)
-  { top: '75%', left: '-5%', transform: 'translate(0%, -50%)' },     // Left bottom (seat 1)
+  { top: '82%', left: '50%', transform: 'translate(-50%, -50%)' },   // Bottom center (seat 0 - you)
+  { top: '65%', left: '-5%', transform: 'translate(0%, -50%)' },     // Left bottom (seat 1)
   { top: '25%', left: '-5%', transform: 'translate(0%, -50%)' },     // Left top (seat 2)
-  { top: '0%', left: '50%', transform: 'translate(-50%, -50%)' },    // Top center (seat 3)
+  { top: '5%', left: '50%', transform: 'translate(-50%, -50%)' },    // Top center (seat 3)
   { top: '25%', left: '105%', transform: 'translate(-100%, -50%)' }, // Right top (seat 4)
-  { top: '75%', left: '105%', transform: 'translate(-100%, -50%)' }, // Right bottom (seat 5)
+  { top: '65%', left: '105%', transform: 'translate(-100%, -50%)' }, // Right bottom (seat 5)
 ];
 
 export default function PokerTable({
@@ -43,9 +43,48 @@ export default function PokerTable({
   const [addingBot, setAddingBot] = useState(false);
   const lastBotTurnKeyRef = useRef('');
 
+  // Track card counts for animation
+  const prevCommunityCount = useRef(0);
+  const prevHoleCardCounts = useRef<Record<string, number>>({});
+  const [animatingCommunity, setAnimatingCommunity] = useState<number[]>([]);
+  const [animatingHoleCards, setAnimatingHoleCards] = useState<Record<string, number[]>>({});
+
   useEffect(() => {
     setRaiseTotal(minRaiseTotal);
   }, [minRaiseTotal, game.phase, game.currentPlayerIndex]);
+
+  // Detect new cards for animation
+  useEffect(() => {
+    // Community cards - staggered delays for flop (3 cards), turn, river
+    if (game.communityCards.length > prevCommunityCount.current) {
+      const newIndices: number[] = [];
+      for (let i = prevCommunityCount.current; i < game.communityCards.length; i++) {
+        newIndices.push(i);
+      }
+      setAnimatingCommunity(newIndices);
+      setTimeout(() => setAnimatingCommunity([]), 1500);
+    }
+    prevCommunityCount.current = game.communityCards.length;
+
+    // Hole cards - animate all new cards with staggered delays
+    const newAnimating: Record<string, number[]> = {};
+    game.players.forEach(player => {
+      const prevCount = prevHoleCardCounts.current[player.odlUser] || 0;
+      if (player.holeCards.length > prevCount) {
+        const newIndices: number[] = [];
+        for (let i = prevCount; i < player.holeCards.length; i++) {
+          newIndices.push(i);
+        }
+        newAnimating[player.odlUser] = newIndices;
+      }
+      prevHoleCardCounts.current[player.odlUser] = player.holeCards.length;
+    });
+
+    if (Object.keys(newAnimating).length > 0) {
+      setAnimatingHoleCards(newAnimating);
+      setTimeout(() => setAnimatingHoleCards({}), 1500);
+    }
+  }, [game.communityCards.length, game.players]);
 
   // Get current player info for bot turn detection
   const currentTurnPlayer = game.players[game.currentPlayerIndex];
@@ -128,9 +167,9 @@ export default function PokerTable({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-[700px] bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 rounded-2xl overflow-hidden p-4">
+    <div className="flex flex-col h-full min-h-[500px] bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 rounded-2xl overflow-hidden p-2">
       {/* Top bar - Phase and Hand number */}
-      <div className="flex items-center justify-between px-4 py-2 mb-2">
+      <div className="flex items-center justify-between px-4 py-1 mb-1">
         <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
           game.phase === 'waiting' ? 'bg-gray-600 text-gray-200' :
           game.phase === 'showdown' || game.phase === 'finished' ? 'bg-purple-600 text-white' :
@@ -144,10 +183,10 @@ export default function PokerTable({
       </div>
 
       {/* Main table area */}
-      <div className="flex-1 flex items-center justify-center px-8">
-        <div className="relative w-full max-w-4xl" style={{ paddingBottom: '45%' }}>
+      <div className="flex-1 flex items-start justify-center px-8 pt-2 pb-16">
+        <div className="relative w-full max-w-4xl" style={{ paddingBottom: '35%' }}>
           {/* Table container with padding for seats */}
-          <div className="absolute inset-0" style={{ margin: '40px 80px' }}>
+          <div className="absolute inset-0" style={{ margin: '25px 80px' }}>
             {/* Table outer rim - wood effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-amber-800 via-amber-900 to-amber-950 rounded-[50%] shadow-2xl" />
 
@@ -171,6 +210,7 @@ export default function PokerTable({
                   isCurrentUser={player?.odlUser === currentUserId}
                   isCurrentTurn={game.players[game.currentPlayerIndex]?.seatNumber === seatNum}
                   isHost={player?.odlUser === game.createdBy}
+                  animatingCards={player ? (animatingHoleCards[player.odlUser] || []) : []}
                   showCards={
                     player?.odlUser === currentUserId ||
                     game.phase === 'showdown'
@@ -196,6 +236,8 @@ export default function PokerTable({
                     card={game.communityCards[i]}
                     faceDown={!game.communityCards[i]}
                     small
+                    animate={animatingCommunity.includes(i)}
+                    dealDelay={animatingCommunity.indexOf(i) >= 0 ? animatingCommunity.indexOf(i) * 250 : 0}
                   />
                 ))}
               </div>
@@ -388,6 +430,7 @@ function PlayerSeat({
   isHost,
   showCards,
   gamePhase,
+  animatingCards,
 }: {
   player?: PokerPlayer;
   position: { top: string; left: string; transform: string };
@@ -396,6 +439,7 @@ function PlayerSeat({
   isHost: boolean;
   showCards: boolean;
   gamePhase: string;
+  animatingCards: number[];
 }) {
   const isBot = player?.isBot;
   if (!player) {
@@ -423,6 +467,8 @@ function PlayerSeat({
                 <PokerCard
                   key={i}
                   card={showCards ? card : undefined}
+                  animate={animatingCards.includes(i)}
+                  dealDelay={animatingCards.indexOf(i) >= 0 ? animatingCards.indexOf(i) * 200 : 0}
                   faceDown={!showCards}
                   small
                 />

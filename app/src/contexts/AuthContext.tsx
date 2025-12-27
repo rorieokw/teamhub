@@ -9,7 +9,8 @@ import type { ReactNode } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import type { User, AppSettings } from '../types';
+import type { User, AppSettings, TokenStats } from '../types';
+import { DEFAULT_TOKENS } from '../types';
 import { subscribeToUserProfile } from '../services/auth';
 import { setupPresenceTracking } from '../services/presence';
 import { subscribeToAppSettings } from '../services/settings';
@@ -23,7 +24,17 @@ interface AuthContextType {
   isApproved: boolean; // Whether user can access the app
   isPendingApproval: boolean; // Whether user is waiting for approval
   isRejected: boolean; // Whether user was rejected
+  // Token system
+  tokenBalance: number;
+  tokenStats: TokenStats;
 }
+
+const defaultTokenStats: TokenStats = {
+  totalWagered: 0,
+  totalWon: 0,
+  totalLost: 0,
+  gamesPlayed: 0,
+};
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
@@ -33,6 +44,8 @@ const AuthContext = createContext<AuthContextType>({
   isApproved: false,
   isPendingApproval: false,
   isRejected: false,
+  tokenBalance: DEFAULT_TOKENS,
+  tokenStats: defaultTokenStats,
 });
 
 export function useAuth() {
@@ -122,6 +135,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isPendingApproval = whitelistEnabled && !isAdmin && (approvalStatus === 'pending' || !approvalStatus);
   const isRejected = whitelistEnabled && !isAdmin && approvalStatus === 'rejected';
 
+  // Token balance and stats from user profile
+  const tokenBalance = userProfile?.tokens ?? DEFAULT_TOKENS;
+  const tokenStats = userProfile?.tokenStats ?? defaultTokenStats;
+
   const value = {
     currentUser,
     userProfile,
@@ -130,6 +147,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isApproved,
     isPendingApproval,
     isRejected,
+    tokenBalance,
+    tokenStats,
   };
 
   return (

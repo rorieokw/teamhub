@@ -212,6 +212,43 @@ export default function Settings() {
 
         {/* Content */}
         <div className="flex-1">
+          {activeTab === 'general' && (
+            <div className="space-y-6">
+              <div className="glass rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/10">
+                  <h3 className="text-lg font-semibold text-white">About TeamHub</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium">Version</p>
+                      <p className="text-gray-400 text-sm">Current application version</p>
+                    </div>
+                    <div className="px-4 py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-xl">
+                      <span className="text-purple-300 font-mono font-medium">v{__APP_VERSION__}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass rounded-xl p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium mb-1">TeamHub</h4>
+                    <p className="text-gray-400 text-sm">
+                      A collaborative workspace for your team. Chat, manage projects, track tasks, and share documents all in one place.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'shortcuts' && (
             <div className="space-y-6">
               {shortcutCategories.map((category) => (

@@ -32,12 +32,13 @@ import { notifyTaskAssigned } from '../services/notifications';
 import { closePoll, reopenPoll } from '../services/polls';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import type { User, Poll, Message, Project, Task } from '../types';
+import type { User, Poll, Message, Project, Task, TokenTransaction } from '../types';
 import { subscribeToAppSettings, updateAppSettings } from '../services/settings';
 import { updateUserApprovalStatus, subscribeToPendingUsers, subscribeToApprovedUsers, approveAllLegacyUsers } from '../services/users';
 import type { AppSettings } from '../types';
+import { subscribeToRecentTransactions } from '../services/tokens';
 
-type TabType = 'overview' | 'messages' | 'users' | 'projects' | 'tasks' | 'polls' | 'announcements' | 'logs' | 'security';
+type TabType = 'overview' | 'messages' | 'users' | 'projects' | 'tasks' | 'polls' | 'announcements' | 'logs' | 'security' | 'transactions';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
@@ -97,6 +98,9 @@ export default function AdminPanel() {
   const [togglingWhitelist, setTogglingWhitelist] = useState(false);
   const [togglingGames, setTogglingGames] = useState(false);
   const [approvingLegacy, setApprovingLegacy] = useState(false);
+
+  // Token transactions
+  const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
 
   // Redirect if not admin
   useEffect(() => {
@@ -164,6 +168,9 @@ export default function AdminPanel() {
     // Subscribe to approved/whitelisted users
     const unsubApprovedUsers = subscribeToApprovedUsers(setApprovedUsers);
 
+    // Subscribe to token transactions
+    const unsubTransactions = subscribeToRecentTransactions(100, setTransactions);
+
     return () => {
       unsubMessages();
       unsubPolls();
@@ -172,6 +179,7 @@ export default function AdminPanel() {
       unsubSettings();
       unsubPendingUsers();
       unsubApprovedUsers();
+      unsubTransactions();
     };
   }, [isAdmin]);
 
@@ -582,6 +590,7 @@ export default function AdminPanel() {
     { id: 'polls', label: 'Polls', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
     { id: 'announcements', label: 'Announcements', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg> },
     { id: 'logs', label: 'Activity Logs', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+    { id: 'transactions', label: 'Token History', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
   ];
 
   return (
@@ -1439,6 +1448,78 @@ export default function AdminPanel() {
                           <p className="text-xs text-gray-500">{log.details}</p>
                         )}
                         <p className="text-xs text-gray-600 mt-1">{formatDate(log.createdAt)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Token Transactions Tab */}
+      {activeTab === 'transactions' && (
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/10">
+            <h3 className="font-semibold text-white">Token Transaction History</h3>
+            <p className="text-xs text-gray-400">All casino game token transactions</p>
+          </div>
+          <div className="max-h-[600px] overflow-y-auto">
+            {transactions.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">No transactions yet</div>
+            ) : (
+              <div className="divide-y divide-white/5">
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="p-4 hover:bg-white/5">
+                    <div className="flex items-center gap-4">
+                      {/* Icon based on type */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        tx.type === 'win' ? 'bg-green-500/20' :
+                        tx.type === 'bet' ? 'bg-red-500/20' :
+                        tx.type === 'refund' ? 'bg-blue-500/20' :
+                        'bg-yellow-500/20'
+                      }`}>
+                        {tx.type === 'win' && <span className="text-lg">🏆</span>}
+                        {tx.type === 'bet' && <span className="text-lg">🎲</span>}
+                        {tx.type === 'refund' && <span className="text-lg">↩️</span>}
+                        {tx.type === 'daily_reset' && <span className="text-lg">🔄</span>}
+                      </div>
+
+                      {/* Transaction details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">{tx.odlUserName}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            tx.type === 'win' ? 'bg-green-500/20 text-green-400' :
+                            tx.type === 'bet' ? 'bg-red-500/20 text-red-400' :
+                            tx.type === 'refund' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {tx.type === 'daily_reset' ? 'reset' : tx.type}
+                          </span>
+                          {tx.gameType && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                              {tx.gameType}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400 truncate">{tx.description}</p>
+                      </div>
+
+                      {/* Amount */}
+                      <div className="text-right flex-shrink-0">
+                        <p className={`font-bold ${tx.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {tx.amount >= 0 ? '+' : ''}{tx.amount.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Balance: {tx.balanceAfter.toLocaleString()}
+                        </p>
+                      </div>
+
+                      {/* Timestamp */}
+                      <div className="text-xs text-gray-600 flex-shrink-0 w-24 text-right">
+                        {formatDate(tx.createdAt)}
                       </div>
                     </div>
                   </div>

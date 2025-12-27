@@ -27,7 +27,19 @@
       "Bash(git stash:*)",
       "WebFetch(domain:teamhubworkspace.web.app)",
       "Bash(curl:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(wmic logicaldisk where \"DeviceID=''C:''\" get Size,FreeSpace,Caption /format:list)",
+      "Bash(powershell:*)",
+      "Bash(cmd.exe /c \"dir /s C:\\\\Users\\\\rorie 2>nul\")",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\rorie\\\\Desktop\\\\Work Station\\\\TeamHub\\\\disk_check.ps1\")",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\rorie\\\\Desktop\\\\Work Station\\\\TeamHub\\\\appdata_check.ps1\")",
+      "Bash(powershell.exe -Command \"Remove-Item ''C:\\\\Users\\\\rorie\\\\AppData\\\\Roaming\\\\Apple Computer'' -Recurse -Force\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem ''C:\\\\Users\\\\rorie\\\\AppData\\\\Local\\\\Temp'' -Force -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count; \\(Get-ChildItem ''C:\\\\Users\\\\rorie\\\\AppData\\\\Local\\\\Temp'' -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum\\).Sum / 1GB\")",
+      "Bash(powershell.exe:*)",
+      "Bash(wmic logicaldisk:*)",
+      "Bash(npm cache clean:*)"
     ]
   }
 }

@@ -131,10 +131,10 @@ export default function BlackjackGame() {
   }
 
   async function handlePlaceBet(amount: number) {
-    if (!currentGameId || !currentUser?.uid) return;
+    if (!currentGameId || !currentUser?.uid || !userProfile) return;
 
     try {
-      await placeBet(currentGameId, currentUser.uid, amount);
+      await placeBet(currentGameId, currentUser.uid, userProfile.displayName, amount);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to place bet');
     }

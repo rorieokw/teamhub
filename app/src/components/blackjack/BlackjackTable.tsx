@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import type { BlackjackGame, BlackjackPlayer, BlackjackAction, Card } from '../../types/blackjack';
+import { useState, useEffect, useRef } from 'react';
+import type { BlackjackGame, BlackjackPlayer, BlackjackAction } from '../../types/blackjack';
 import { getHandValueDisplay, canSplit, canDoubleDown } from '../../utils/blackjackLogic';
+import { GameCard } from '../cards/PlayingCard';
 
 interface BlackjackTableProps {
   game: BlackjackGame;
@@ -27,12 +28,57 @@ export default function BlackjackTable({
 
   const [betAmount, setBetAmount] = useState(game.minBet);
 
+  // Track when cards should animate (on initial deal or new cards)
+  const prevDealerCount = useRef(0);
+  const prevPlayerCounts = useRef<Record<string, number>>({});
+  const [dealerAnimating, setDealerAnimating] = useState<number[]>([]);
+  const [playerAnimating, setPlayerAnimating] = useState<Record<string, number[]>>({});
+
+  useEffect(() => {
+    // Check dealer cards - animate ALL new cards with staggered delays
+    if (game.dealerHand.length > prevDealerCount.current) {
+      const newIndices: number[] = [];
+      for (let i = prevDealerCount.current; i < game.dealerHand.length; i++) {
+        newIndices.push(i);
+      }
+      setDealerAnimating(newIndices);
+      // Clear after animations complete
+      setTimeout(() => setDealerAnimating([]), 1500);
+    }
+    prevDealerCount.current = game.dealerHand.length;
+
+    // Check each player's cards
+    const newPlayerAnimating: Record<string, number[]> = {};
+    game.players.forEach(player => {
+      const prevCount = prevPlayerCounts.current[player.odlUser] || 0;
+      if (player.hand.length > prevCount) {
+        const newIndices: number[] = [];
+        for (let i = prevCount; i < player.hand.length; i++) {
+          newIndices.push(i);
+        }
+        newPlayerAnimating[player.odlUser] = newIndices;
+      }
+      prevPlayerCounts.current[player.odlUser] = player.hand.length;
+    });
+
+    if (Object.keys(newPlayerAnimating).length > 0) {
+      setPlayerAnimating(newPlayerAnimating);
+      setTimeout(() => setPlayerAnimating({}), 1500);
+    }
+  }, [game.dealerHand.length, game.players]);
+
   const getPhaseLabel = (phase: string) => {
     switch (phase) {
       case 'waiting': return 'Waiting for Players';
       case 'betting': return 'Place Your Bets';
       case 'dealing': return 'Dealing Cards';
-      case 'playing': return 'Your Turn';
+      case 'playing': {
+        const activePlayer = game.players[game.currentPlayerIndex];
+        if (activePlayer?.odlUser === currentUserId) {
+          return 'Your Turn';
+        }
+        return `${activePlayer?.odlUserName || 'Player'}'s Turn`;
+      }
       case 'dealer-turn': return "Dealer's Turn";
       case 'payout': return 'Round Complete';
       case 'finished': return 'Round Complete';
@@ -76,7 +122,13 @@ export default function BlackjackTable({
           <div className="flex gap-2 justify-center">
             {game.dealerHand.length > 0 ? (
               game.dealerHand.map((card, i) => (
-                <BlackjackCard key={i} card={card} />
+                <GameCard
+                  key={`dealer-${i}`}
+                  card={card}
+                  size="md"
+                  animate={dealerAnimating.includes(i)}
+                  dealDelay={dealerAnimating.indexOf(i) >= 0 ? dealerAnimating.indexOf(i) * 300 : 0}
+                />
               ))
             ) : (
               <>
@@ -85,7 +137,12 @@ export default function BlackjackTable({
               </>
             )}
             {!game.dealerRevealed && game.dealerHand.length === 1 && (
-              <BlackjackCard faceDown />
+              <GameCard
+                faceDown
+                size="md"
+                animate={dealerAnimating.includes(1)}
+                dealDelay={dealerAnimating.indexOf(1) >= 0 ? dealerAnimating.indexOf(1) * 300 : 300}
+              />
             )}
           </div>
         </div>
@@ -97,6 +154,7 @@ export default function BlackjackTable({
             {game.players.map((player, index) => (
               <PlayerSeat
                 key={player.odlUser}
+                animatingCards={playerAnimating[player.odlUser] || []}
                 player={player}
                 isCurrentUser={player.odlUser === currentUserId}
                 isCurrentTurn={game.phase === 'playing' && game.currentPlayerIndex === index}
@@ -187,6 +245,17 @@ export default function BlackjackTable({
         </div>
       )}
 
+      {/* Waiting for your turn message */}
+      {game.phase === 'playing' && !isMyTurn && currentPlayer?.status === 'playing' && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="bg-gray-900/95 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/10 shadow-2xl">
+            <p className="text-gray-300 text-sm">
+              Waiting for <span className="text-yellow-400 font-medium">{game.players[game.currentPlayerIndex]?.odlUserName}</span> to play...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Waiting state controls */}
       {game.phase === 'waiting' && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
@@ -234,41 +303,6 @@ export default function BlackjackTable({
   );
 }
 
-// Card component for blackjack
-function BlackjackCard({ card, faceDown }: { card?: Card; faceDown?: boolean }) {
-  if (faceDown || !card) {
-    return (
-      <div className="w-16 h-24 rounded-lg bg-gradient-to-br from-blue-800 to-blue-900 border-2 border-blue-600 shadow-lg flex items-center justify-center">
-        <div className="w-12 h-18 rounded border border-blue-500/50 bg-blue-700/50 flex items-center justify-center">
-          <span className="text-blue-400 text-2xl">?</span>
-        </div>
-      </div>
-    );
-  }
-
-  const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
-  const suitSymbol = {
-    hearts: '♥',
-    diamonds: '♦',
-    clubs: '♣',
-    spades: '♠',
-  }[card.suit];
-
-  return (
-    <div className="w-16 h-24 rounded-lg bg-white shadow-lg flex flex-col items-center justify-between p-1.5 border border-gray-200">
-      <div className={`text-sm font-bold ${isRed ? 'text-red-600' : 'text-gray-900'}`}>
-        {card.rank}
-      </div>
-      <div className={`text-2xl ${isRed ? 'text-red-600' : 'text-gray-900'}`}>
-        {suitSymbol}
-      </div>
-      <div className={`text-sm font-bold rotate-180 ${isRed ? 'text-red-600' : 'text-gray-900'}`}>
-        {card.rank}
-      </div>
-    </div>
-  );
-}
-
 // Card placeholder
 function CardPlaceholder() {
   return (
@@ -284,11 +318,13 @@ function PlayerSeat({
   isCurrentUser,
   isCurrentTurn,
   showCards,
+  animatingCards,
 }: {
   player: BlackjackPlayer;
   isCurrentUser: boolean;
   isCurrentTurn: boolean;
   showCards: boolean;
+  animatingCards: number[];
 }) {
   const handValue = player.hand.length > 0 ? getHandValueDisplay(player.hand) : '';
 
@@ -312,7 +348,13 @@ function PlayerSeat({
       {showCards && player.hand.length > 0 && (
         <div className="flex gap-1 mb-2 -mt-8">
           {player.hand.map((card, i) => (
-            <BlackjackCard key={i} card={card} />
+            <GameCard
+              key={`hand-${i}`}
+              card={card}
+              size="md"
+              animate={animatingCards.includes(i)}
+              dealDelay={animatingCards.indexOf(i) >= 0 ? animatingCards.indexOf(i) * 300 : 0}
+            />
           ))}
         </div>
       )}
@@ -321,7 +363,7 @@ function PlayerSeat({
       {showCards && player.splitHand && player.splitHand.length > 0 && (
         <div className="flex gap-1 mb-2">
           {player.splitHand.map((card, i) => (
-            <BlackjackCard key={`split-${i}`} card={card} />
+            <GameCard key={`split-${i}`} card={card} size="md" animate={false} />
           ))}
         </div>
       )}

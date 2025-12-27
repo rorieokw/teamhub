@@ -33,6 +33,12 @@ import {
   getBotDecision,
   isBotPlayer,
 } from '../utils/mahjongAI';
+import {
+  getTokenBalance,
+  deductTokens,
+  creditTokens,
+  incrementGamesPlayed,
+} from './tokens';
 
 const COLLECTION = 'mahjongGames';
 const STARTING_SCORE = 25000;
@@ -99,6 +105,9 @@ export function subscribeToMahjongGame(
   });
 }
 
+// Minimum tokens required to play (covers potential loss)
+const MIN_TOKENS_TO_PLAY = 8000;
+
 // Create a new mahjong game
 export async function createMahjongGame(
   creatorId: string,
@@ -106,15 +115,23 @@ export async function createMahjongGame(
   creatorAvatar?: string,
   gameName?: string
 ): Promise<string> {
+  // Get creator's current token balance
+  const creatorBalance = await getTokenBalance(creatorId);
+
+  // Check if they have enough to cover potential losses
+  if (creatorBalance < MIN_TOKENS_TO_PLAY) {
+    throw new Error(`You need at least ${MIN_TOKENS_TO_PLAY} tokens to play. Use daily reset to get more tokens.`);
+  }
+
   const playerData: MahjongPlayer = {
     odlUser: creatorId,
     odlUserName: creatorName,
-    odlUserAvatar: creatorAvatar,
+    ...(creatorAvatar && { odlUserAvatar: creatorAvatar }),
     seatNumber: 0,
     hand: [],
     melds: [],
     discards: [],
-    score: STARTING_SCORE,
+    score: creatorBalance, // Use actual token balance as score
     status: 'waiting',
     isDealer: true,
     joinedAt: Timestamp.now(),
@@ -164,6 +181,14 @@ export async function joinMahjongGame(
     throw new Error('Game is full');
   }
 
+  // Get user's token balance
+  const userBalance = await getTokenBalance(odlUser);
+
+  // Check if they have enough to cover potential losses
+  if (userBalance < MIN_TOKENS_TO_PLAY) {
+    throw new Error(`You need at least ${MIN_TOKENS_TO_PLAY} tokens to join. Use daily reset to get more tokens.`);
+  }
+
   const takenSeats = game.players.map((p) => p.seatNumber);
   let seatNumber = 0;
   for (let i = 0; i < 4; i++) {
@@ -180,7 +205,7 @@ export async function joinMahjongGame(
     hand: [],
     melds: [],
     discards: [],
-    score: STARTING_SCORE,
+    score: userBalance, // Use actual token balance as score
     status: 'waiting',
     isDealer: false,
     joinedAt: Timestamp.now(),
@@ -240,6 +265,18 @@ export async function startRound(gameId: string): Promise<void> {
     throw new Error('Need exactly 4 players to start');
   }
 
+  // Refresh token balances for all human players
+  const playerBalances = await Promise.all(
+    game.players.map(async (p) => {
+      if (isBotPlayer(p)) {
+        return { odlUser: p.odlUser, balance: p.score }; // Bots keep their score
+      }
+      const balance = await getTokenBalance(p.odlUser);
+      return { odlUser: p.odlUser, balance };
+    })
+  );
+  const balanceMap = new Map(playerBalances.map((pb) => [pb.odlUser, pb.balance]));
+
   // Create and shuffle tiles
   let wall = shuffleTiles(createTileSet());
 
@@ -248,6 +285,7 @@ export async function startRound(gameId: string): Promise<void> {
     const tileCount = index === game.dealerIndex ? 14 : 13;
     const { dealt, remaining } = dealTiles(wall, tileCount);
     wall = remaining;
+    const freshBalance = balanceMap.get(p.odlUser) ?? p.score;
 
     const playerData: Record<string, unknown> = {
       odlUser: p.odlUser,
@@ -256,10 +294,11 @@ export async function startRound(gameId: string): Promise<void> {
       hand: dealt,
       melds: [],
       discards: [],
-      score: p.score,
+      score: freshBalance, // Use fresh token balance
       status: 'playing',
       isDealer: index === game.dealerIndex,
       joinedAt: p.joinedAt,
+      ...(p.isBot && { isBot: true }),
     };
 
     if (p.odlUserAvatar) {
@@ -533,12 +572,43 @@ export async function declareMahjong(gameId: string, odlUser: string): Promise<v
 
   // Calculate score (simplified - just transfer points)
   const winAmount = 8000; // Base win amount
+  const totalWinnings = winAmount * 3; // Winner gets from all 3 losers
+
+  // Update global tokens for all human players
+  for (const p of game.players) {
+    if (isBotPlayer(p)) continue;
+
+    if (p.odlUser === odlUser) {
+      // Winner - credit winnings
+      await creditTokens(
+        p.odlUser,
+        p.odlUserName,
+        totalWinnings,
+        'mahjong',
+        gameId,
+        `Mahjong win - Round ${game.roundNumber}`
+      );
+    } else {
+      // Loser - deduct loss
+      await deductTokens(
+        p.odlUser,
+        p.odlUserName,
+        winAmount,
+        'mahjong',
+        gameId,
+        `Mahjong loss - Round ${game.roundNumber}`
+      );
+    }
+    // Record games played
+    await incrementGamesPlayed(p.odlUser);
+  }
+
   const updatedPlayers = game.players.map((p, i) => {
     if (i === playerIndex) {
       return {
         ...p,
         hand: checkHand,
-        score: p.score + (winAmount * 3),
+        score: p.score + totalWinnings,
         status: 'won' as const,
       };
     }
@@ -936,12 +1006,30 @@ async function declareMahjongForBot(
   }
 
   const winAmount = 8000;
+  const totalWinnings = winAmount * 3;
+
+  // Update global tokens for human players (bot won, humans lost)
+  for (const p of game.players) {
+    if (isBotPlayer(p)) continue;
+
+    // All human players lose (since bot won)
+    await deductTokens(
+      p.odlUser,
+      p.odlUserName,
+      winAmount,
+      'mahjong',
+      gameId,
+      `Mahjong loss - Round ${game.roundNumber}`
+    );
+    await incrementGamesPlayed(p.odlUser);
+  }
+
   const updatedPlayers = game.players.map((p, i) => {
     if (i === playerIndex) {
       return {
         ...p,
         hand: checkHand,
-        score: p.score + winAmount * 3,
+        score: p.score + totalWinnings,
         status: 'won' as const,
       };
     }

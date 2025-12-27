@@ -7,6 +7,15 @@ export interface NameHistoryEntry {
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+// Token stats for casino games
+export interface TokenStats {
+  totalWagered: number;    // Sum of all bets placed
+  totalWon: number;        // Sum of all winnings
+  totalLost: number;       // Sum of all losses
+  gamesPlayed: number;     // Completed game rounds
+  lastDailyReset?: Timestamp; // For "broke" reset feature
+}
+
 export interface User {
   id: string;
   email: string;
@@ -21,6 +30,9 @@ export interface User {
   approvalStatus?: ApprovalStatus; // For whitelist mode
   bannerId?: string; // Currently selected profile banner
   unlockedBanners?: string[]; // Persisted unlocked banner IDs
+  // Casino tokens
+  tokens?: number; // Current balance (default: 50000)
+  tokenStats?: TokenStats; // Lifetime game statistics
   createdAt: Timestamp;
 }
 
@@ -483,5 +495,91 @@ export interface IceCandidate {
   odlUser: string;
   targetUser: string;
   candidate: RTCIceCandidateInit;
+  createdAt: Timestamp;
+}
+
+// ============================================
+// CASINO TOKEN TRANSACTIONS
+// ============================================
+
+export type GameType = 'blackjack' | 'poker' | 'mahjong';
+export type TransactionType = 'bet' | 'win' | 'refund' | 'daily_reset';
+
+export interface TokenTransaction {
+  id: string;
+  odlUser: string;
+  odlUserName: string;
+  type: TransactionType;
+  amount: number;           // Positive for credit, negative for debit
+  gameType?: GameType;
+  gameId?: string;
+  balanceAfter: number;
+  description: string;
+  createdAt: Timestamp;
+}
+
+// Default token amount for new users
+export const DEFAULT_TOKENS = 50000;
+
+// ============================================
+// PROJECT PAGE WIDGETS
+// ============================================
+
+export type ProjectWidgetId =
+  | 'my-tasks'
+  | 'quick-notes'
+  | 'pinned-links'
+  | 'recent-activity'
+  | 'team-status'
+  | 'deadlines'
+  | 'password-vault';
+
+export type ProjectWidgetColumn = 'left' | 'right';
+
+export interface ProjectWidgetConfig {
+  id: ProjectWidgetId;
+  visible: boolean;
+  position: number;
+  column: ProjectWidgetColumn;
+  collapsed?: boolean;
+}
+
+export interface ProjectLayout {
+  userId: string;
+  projectId: string;
+  leftWidgets: ProjectWidgetConfig[];
+  rightWidgets: ProjectWidgetConfig[];
+  updatedAt: Timestamp;
+}
+
+export interface ProjectNote {
+  id: string;
+  projectId: string;
+  userId: string;
+  content: string;
+  updatedAt: Timestamp;
+}
+
+export interface ProjectLink {
+  id: string;
+  projectId: string;
+  title: string;
+  url: string;
+  icon?: string;
+  addedBy: string;
+  addedByName: string;
+  createdAt: Timestamp;
+}
+
+export interface PasswordEntry {
+  id: string;
+  projectId: string;
+  title: string;
+  username: string;
+  password: string;
+  url?: string;
+  notes?: string;
+  addedBy: string;
+  addedByName: string;
   createdAt: Timestamp;
 }

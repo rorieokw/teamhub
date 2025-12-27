@@ -223,7 +223,7 @@ export default function Documents() {
                             key={doc.id}
                             document={doc}
                             uploader={uploaders.get(doc.uploadedBy)}
-                            canDelete={doc.uploadedBy === currentUser?.uid}
+                            canDelete={doc.uploadedBy === currentUser?.uid || isAdmin}
                             onDelete={() => setDeleteTarget(doc)}
                           />
                         ))}
@@ -240,7 +240,7 @@ export default function Documents() {
                   key={doc.id}
                   document={doc}
                   uploader={uploaders.get(doc.uploadedBy)}
-                  canDelete={doc.uploadedBy === currentUser?.uid}
+                  canDelete={doc.uploadedBy === currentUser?.uid || isAdmin}
                   onDelete={() => setDeleteTarget(doc)}
                 />
               ))}

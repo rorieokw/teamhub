@@ -26,6 +26,12 @@ import {
   determineWinners,
 } from '../utils/pokerLogic';
 import { getBotDecision, generateBotPlayer } from '../utils/pokerAI';
+import {
+  getTokenBalance,
+  deductTokens,
+  creditTokens,
+  incrementGamesPlayed,
+} from './tokens';
 
 const COLLECTION = 'pokerGames';
 
@@ -140,6 +146,14 @@ export async function createPokerGame(
   creatorAvatar?: string,
   gameName?: string
 ): Promise<string> {
+  // Get creator's current token balance
+  const creatorBalance = await getTokenBalance(creatorId);
+
+  // Check if they have enough for big blind (minimum to play)
+  if (creatorBalance < DEFAULT_BIG_BLIND) {
+    throw new Error(`You need at least ${DEFAULT_BIG_BLIND} tokens to play. Use daily reset to get more tokens.`);
+  }
+
   const game: Omit<PokerGame, 'id'> = {
     name: gameName || `${creatorName}'s Table`,
     smallBlind: DEFAULT_SMALL_BLIND,
@@ -155,9 +169,9 @@ export async function createPokerGame(
     players: [{
       odlUser: creatorId,
       odlUserName: creatorName,
-      odlUserAvatar: creatorAvatar,
+      ...(creatorAvatar && { odlUserAvatar: creatorAvatar }),
       seatNumber: 0,
-      chips: DEFAULT_BUY_IN,
+      chips: creatorBalance, // Use actual token balance
       currentBet: 0,
       totalBetThisHand: 0,
       holeCards: [],
@@ -210,6 +224,14 @@ export async function joinPokerGame(
     throw new Error('Game is full');
   }
 
+  // Get user's token balance
+  const userBalance = await getTokenBalance(odlUser);
+
+  // Check if they have enough for big blind (minimum to play)
+  if (userBalance < game.bigBlind) {
+    throw new Error(`You need at least ${game.bigBlind} tokens to join. Use daily reset to get more tokens.`);
+  }
+
   // Find available seat
   const takenSeats = game.players.map((p) => p.seatNumber);
   let seatNumber = 0;
@@ -223,9 +245,9 @@ export async function joinPokerGame(
   const newPlayer: PokerPlayer = {
     odlUser,
     odlUserName,
-    odlUserAvatar,
+    ...(odlUserAvatar && { odlUserAvatar }),
     seatNumber,
-    chips: DEFAULT_BUY_IN,
+    chips: userBalance, // Use actual token balance
     currentBet: 0,
     totalBetThisHand: 0,
     holeCards: [],
@@ -422,6 +444,18 @@ export async function startHand(gameId: string): Promise<void> {
     throw new Error('Need at least 2 players to start');
   }
 
+  // Refresh token balances for all human players
+  const playerBalances = await Promise.all(
+    game.players.map(async (p) => {
+      if (isBotPlayer(p)) {
+        return { odlUser: p.odlUser, balance: p.chips }; // Bots keep their chips
+      }
+      const balance = await getTokenBalance(p.odlUser);
+      return { odlUser: p.odlUser, balance };
+    })
+  );
+  const balanceMap = new Map(playerBalances.map((pb) => [pb.odlUser, pb.balance]));
+
   // Create and shuffle deck
   let deck = createDeck();
 
@@ -442,17 +476,18 @@ export async function startHand(gameId: string): Promise<void> {
     bigBlindIndex = (dealerIndex + 2) % game.players.length;
   }
 
-  // Deal hole cards (2 per player)
+  // Deal hole cards (2 per player) with fresh balances
   const players: PokerPlayer[] = game.players.map((p, i) => {
     const { dealt, remaining } = dealCards(deck, 2);
     deck = remaining;
+    const freshBalance = balanceMap.get(p.odlUser) ?? p.chips;
 
     return {
       odlUser: p.odlUser,
       odlUserName: p.odlUserName,
-      odlUserAvatar: p.odlUserAvatar,
+      ...(p.odlUserAvatar && { odlUserAvatar: p.odlUserAvatar }),
       seatNumber: p.seatNumber,
-      chips: p.chips,
+      chips: freshBalance, // Use fresh token balance
       joinedAt: p.joinedAt,
       holeCards: dealt,
       currentBet: 0,
@@ -461,12 +496,25 @@ export async function startHand(gameId: string): Promise<void> {
       isDealer: i === dealerIndex,
       isSmallBlind: i === smallBlindIndex,
       isBigBlind: i === bigBlindIndex,
-      hasActedThisRound: false, // No one has acted yet
+      hasActedThisRound: false,
+      ...(p.isBot && { isBot: true }),
     };
   });
 
-  // Post blinds
-  const sbAmount = Math.min(game.smallBlind, players[smallBlindIndex].chips);
+  // Post blinds - deduct from global tokens for human players
+  const sbPlayer = players[smallBlindIndex];
+  const sbAmount = Math.min(game.smallBlind, sbPlayer.chips);
+
+  if (!isBotPlayer(sbPlayer)) {
+    await deductTokens(
+      sbPlayer.odlUser,
+      sbPlayer.odlUserName,
+      sbAmount,
+      'poker',
+      gameId,
+      `Poker small blind - Hand ${game.handNumber + 1}`
+    );
+  }
   players[smallBlindIndex].currentBet = sbAmount;
   players[smallBlindIndex].totalBetThisHand = sbAmount;
   players[smallBlindIndex].chips -= sbAmount;
@@ -474,7 +522,19 @@ export async function startHand(gameId: string): Promise<void> {
     players[smallBlindIndex].status = 'all-in';
   }
 
-  const bbAmount = Math.min(game.bigBlind, players[bigBlindIndex].chips);
+  const bbPlayer = players[bigBlindIndex];
+  const bbAmount = Math.min(game.bigBlind, bbPlayer.chips);
+
+  if (!isBotPlayer(bbPlayer)) {
+    await deductTokens(
+      bbPlayer.odlUser,
+      bbPlayer.odlUserName,
+      bbAmount,
+      'poker',
+      gameId,
+      `Poker big blind - Hand ${game.handNumber + 1}`
+    );
+  }
   players[bigBlindIndex].currentBet = bbAmount;
   players[bigBlindIndex].totalBetThisHand = bbAmount;
   players[bigBlindIndex].chips -= bbAmount;
@@ -590,6 +650,18 @@ export async function makeAction(
       const actualCall = Math.min(toCall, player.chips);
       const isAllIn = actualCall >= player.chips;
 
+      // Deduct tokens for human players
+      if (!isBotPlayer(player)) {
+        await deductTokens(
+          player.odlUser,
+          player.odlUserName,
+          actualCall,
+          'poker',
+          gameId,
+          `Poker call - Hand ${game.handNumber}`
+        );
+      }
+
       updatedPlayers[playerIndex] = {
         ...player,
         currentBet: player.currentBet + actualCall,
@@ -622,6 +694,18 @@ export async function makeAction(
       const actualBet = Math.min(additionalChipsNeeded, player.chips);
       const newPlayerBet = player.currentBet + actualBet;
       const isAllIn = actualBet >= player.chips;
+
+      // Deduct tokens for human players
+      if (!isBotPlayer(player)) {
+        await deductTokens(
+          player.odlUser,
+          player.odlUserName,
+          actualBet,
+          'poker',
+          gameId,
+          `Poker raise - Hand ${game.handNumber}`
+        );
+      }
 
       // Update min raise for next player (the raise size)
       if (newPlayerBet > currentBet) {
@@ -656,6 +740,18 @@ export async function makeAction(
     case 'all-in': {
       const allInAmount = player.chips;
       const newPlayerBet = player.currentBet + allInAmount;
+
+      // Deduct tokens for human players
+      if (!isBotPlayer(player) && allInAmount > 0) {
+        await deductTokens(
+          player.odlUser,
+          player.odlUserName,
+          allInAmount,
+          'poker',
+          gameId,
+          `Poker all-in - Hand ${game.handNumber}`
+        );
+      }
 
       // If going all-in for more than current bet, it's a raise
       if (newPlayerBet > currentBet) {
@@ -698,6 +794,25 @@ export async function makeAction(
     // Hand over - award pot to the remaining player
     const winner = nonFoldedPlayers[0];
     const winnerIndex = updatedPlayers.findIndex((p) => p.odlUser === winner.odlUser);
+
+    // Credit winnings to global tokens for human players
+    if (!isBotPlayer(winner)) {
+      await creditTokens(
+        winner.odlUser,
+        winner.odlUserName,
+        pot,
+        'poker',
+        gameId,
+        `Poker win (others folded) - Hand ${game.handNumber}`
+      );
+      // Record games played for human players who participated
+      for (const p of updatedPlayers) {
+        if (!isBotPlayer(p)) {
+          await incrementGamesPlayed(p.odlUser);
+        }
+      }
+    }
+
     updatedPlayers[winnerIndex] = {
       ...updatedPlayers[winnerIndex],
       chips: updatedPlayers[winnerIndex].chips + pot,
@@ -748,14 +863,32 @@ export async function makeAction(
       const winners = determineWinners(showdownPlayers, communityCards);
       const winAmount = Math.floor(pot / winners.length);
 
-      // Award pot to winners
+      // Award pot to winners - credit tokens for human players
       for (const winner of winners) {
         const idx = updatedPlayers.findIndex((p) => p.odlUser === winner.odlUser);
         if (idx !== -1) {
+          const winnerPlayer = updatedPlayers[idx];
+          if (!isBotPlayer(winnerPlayer)) {
+            await creditTokens(
+              winnerPlayer.odlUser,
+              winnerPlayer.odlUserName,
+              winAmount,
+              'poker',
+              gameId,
+              `Poker showdown win - Hand ${game.handNumber}`
+            );
+          }
           updatedPlayers[idx] = {
             ...updatedPlayers[idx],
             chips: updatedPlayers[idx].chips + winAmount,
           };
+        }
+      }
+
+      // Record games played for all human players
+      for (const p of updatedPlayers) {
+        if (!isBotPlayer(p)) {
+          await incrementGamesPlayed(p.odlUser);
         }
       }
 
@@ -804,14 +937,32 @@ export async function makeAction(
       const winners = determineWinners(showdownPlayers, communityCards);
       const winAmount = Math.floor(pot / winners.length);
 
-      // Award pot to winners
+      // Award pot to winners - credit tokens for human players
       for (const winner of winners) {
         const idx = updatedPlayers.findIndex((p) => p.odlUser === winner.odlUser);
         if (idx !== -1) {
+          const winnerPlayer = updatedPlayers[idx];
+          if (!isBotPlayer(winnerPlayer)) {
+            await creditTokens(
+              winnerPlayer.odlUser,
+              winnerPlayer.odlUserName,
+              winAmount,
+              'poker',
+              gameId,
+              `Poker showdown win - Hand ${game.handNumber}`
+            );
+          }
           updatedPlayers[idx] = {
             ...updatedPlayers[idx],
             chips: updatedPlayers[idx].chips + winAmount,
           };
+        }
+      }
+
+      // Record games played for all human players
+      for (const p of updatedPlayers) {
+        if (!isBotPlayer(p)) {
+          await incrementGamesPlayed(p.odlUser);
         }
       }
 
