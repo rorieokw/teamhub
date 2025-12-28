@@ -583,3 +583,20 @@ export interface PasswordEntry {
   addedByName: string;
   createdAt: Timestamp;
 }
+
+// ============================================
+// PERSONAL PASSWORD VAULT
+// ============================================
+
+export interface PersonalPassword {
+  id: string;
+  userId: string;
+  title: string;
+  username: string;
+  password: string; // Encrypted
+  url?: string;
+  notes?: string;
+  category?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

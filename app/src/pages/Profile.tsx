@@ -9,6 +9,7 @@ import ReputationModal from '../components/profile/ReputationModal';
 import RankModal from '../components/profile/RankModal';
 import ProfileBanner from '../components/profile/ProfileBanner';
 import BannerSelector from '../components/profile/BannerSelector';
+import PasswordVault from '../components/profile/PasswordVault';
 
 // Preset avatar options - compact set
 const AVATAR_OPTIONS = [
@@ -468,6 +469,9 @@ export default function Profile() {
               </div>
             </>
           )}
+
+          {/* Password Vault */}
+          <PasswordVault />
         </div>
       </div>
 

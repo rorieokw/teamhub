@@ -173,7 +173,7 @@ export default function ProjectModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              GitHub Repository
+              GitHub Repository <span className="text-gray-500 font-normal">(Optional)</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

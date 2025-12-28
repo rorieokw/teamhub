@@ -1,9 +1,16 @@
 // App version - increment this with each release
-export const APP_VERSION = '1.1.0';
-export const BUILD_DATE = '2024-12-27';
+export const APP_VERSION = '1.1.1';
+export const BUILD_DATE = '2024-12-28';
 
 // Changelog for recent versions
 export const CHANGELOG = [
+  {
+    version: '1.1.1',
+    date: '2024-12-28',
+    changes: [
+      'Personal Password Vault on Profile page',
+    ],
+  },
   {
     version: '1.1.0',
     date: '2024-12-27',

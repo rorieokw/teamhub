@@ -40,7 +40,8 @@
       "Bash(powershell.exe -Command \"Get-ChildItem ''C:\\\\Users\\\\rorie\\\\AppData\\\\Local\\\\Temp'' -Force -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count; \\(Get-ChildItem ''C:\\\\Users\\\\rorie\\\\AppData\\\\Local\\\\Temp'' -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum\\).Sum / 1GB\")",
       "Bash(powershell.exe:*)",
       "Bash(wmic logicaldisk:*)",
-      "Bash(npm cache clean:*)"
+      "Bash(npm cache clean:*)",
+      "Bash(find:*)"
     ]
   }
 }
